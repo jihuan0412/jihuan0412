@@ -32,14 +32,39 @@
   .bar { height: 7px; background: #2a2f3b; border-radius: 6px; overflow: hidden; margin-top: 4px; }
   .bar > i { display: block; height: 100%; background: var(--green); border-radius: 6px; }
   .bar.big { height: 12px; }
-  #scene { display: none; width: 100%; height: auto; max-height: 36vh; object-fit: contain; image-rendering: pixelated; border-radius: 12px; margin-top: 8px; background: #000; touch-action: manipulation; cursor: pointer; }
+  body.playing { overflow: hidden; height: 100dvh; padding: 0; }
+  #scene { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); height: 100dvh; image-rendering: pixelated; background: #000; touch-action: manipulation; cursor: pointer; }
   body.playing #scene { display: block; }
+  .hud { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); padding: calc(8px + env(safe-area-inset-top)) 10px 10px; z-index: 5; pointer-events: none;
+    background: linear-gradient(180deg, rgba(8,10,16,.82) 0%, rgba(8,10,16,.55) 70%, rgba(8,10,16,0) 100%); }
+  .hud button, .hud .stat { pointer-events: auto; }
+  .hud .ch { text-shadow: 0 1px 2px #000; }
+  .pills { display: grid; grid-template-columns: 1.25fr 1fr 1.1fr .8fr; gap: 5px; margin-top: 7px; }
+  .pill { pointer-events: auto; display: flex; align-items: center; gap: 4px; background: rgba(14,17,24,.72); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; padding: 5px 9px; font-size: 13px; white-space: nowrap; overflow: hidden; }
+  .pill .bar { flex: 1; margin: 0; height: 6px; }
+  .hud .stat { background: rgba(14,17,24,.72); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(4px); }
+  .status { position: fixed; left: 50%; transform: translateX(-50%); width: min(calc(100vw - 20px), 460px); z-index: 4; display: none; }
+  body.playing .status { display: block; }
+  body.sheet-open .toasts { bottom: calc(56dvh + 74px); }
+  .scard { background: rgba(14,17,24,.82); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(4px); font-size: 13px; }
+  .scard .bar { margin-top: 5px; }
+  .qline { display: inline-block; margin-top: 4px; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: rgba(14,17,24,.7); color: #cfd5e2; }
+  .qline span { color: var(--yellow); }
+  .cta { width: 100%; padding: 9px; font-weight: 800; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.4); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.03); } }
+  .sheet { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom)); width: min(100vw, 480px); max-height: 56dvh; z-index: 7; background: #141821; border-radius: 18px 18px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.55);
+    transform: translate(-50%, calc(100% + 90px)); visibility: hidden; transition: transform .22s ease-out, visibility 0s .22s; display: flex; flex-direction: column; }
+  .sheet.open { transform: translate(-50%, 0); visibility: visible; transition: transform .22s ease-out; }
+  .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 6px; border-bottom: 1px solid var(--line); }
+  .sheet-head b { font-size: 16px; }
+  .sheet-head .x { padding: 4px 10px; }
+  .sheet main { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px 14px; }
   main { padding: 12px; }
   .card { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
   .card h3 { margin: 0 0 8px; font-size: 15px; }
   .mute { color: var(--mute); font-size: 13px; }
   .small { font-size: 12px; }
-  .tag { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--card2); color: var(--mute); margin-right: 4px; }
+  .tag { white-space: nowrap; display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--card2); color: var(--mute); margin-right: 4px; }
   .tag.hot { background: #3a1616; color: #ff8a8a; }
   .tag.good { background: #12301f; color: var(--green); }
   .tag.warn { background: #33290f; color: var(--yellow); }
@@ -67,7 +92,7 @@
   .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
   .tg.on { background: var(--green); }
   .tg.on::after { left: 23px; }
-  .tabs { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(5, 1fr); background: #12151b; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 6; }
+  .tabs { height: calc(64px + env(safe-area-inset-bottom)); position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(5, 1fr); background: rgba(14,17,24,.94); backdrop-filter: blur(6px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 6; }
   .tabs button { background: transparent; border-radius: 0; padding: 10px 0 12px; font-size: 12px; color: var(--mute); }
   .tabs button .ic { display: block; font-size: 19px; }
   .tabs button.on { color: var(--text); font-weight: 700; }
@@ -80,7 +105,7 @@
   .opt { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; background: var(--card2); text-align: left; width: 100%; }
   .opt.sel { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset; }
   input[type=text] { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font: inherit; }
-  .toasts { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); width: calc(100% - 24px); max-width: 456px; z-index: 15; pointer-events: none; display: flex; flex-direction: column-reverse; gap: 6px; }
+  .toasts { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); width: calc(100% - 24px); max-width: 456px; z-index: 15; pointer-events: none; display: flex; flex-direction: column-reverse; gap: 6px; }
   .toast { background: #262b37; border-left: 4px solid var(--blue); padding: 8px 10px; border-radius: 8px; font-size: 13px; animation: tin .2s ease-out; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
   .toast.good { border-color: var(--green); }
   .toast.bad { border-color: var(--red); }
@@ -94,8 +119,10 @@
 </style>
 </head>
 <body>
-<div class="top"><div id="top"></div><canvas id="scene" aria-label="방 안 장면 — 탭하면 작업 독려"></canvas></div>
-<main id="main"></main>
+<canvas id="scene" aria-label="방 안 장면 — 탭하면 작업 독려"></canvas>
+<div class="hud" id="top"></div>
+<div class="status" id="status"></div>
+<div class="sheet" id="sheet"><div class="sheet-head"><b id="sheettitle"></b><button class="x" data-a="closesheet">✕</button></div><main id="main"></main></div>
 <nav class="tabs" id="tabs"></nav>
 <div class="toasts" id="toasts"></div>
 <div id="modal"></div>
@@ -124,7 +151,8 @@ const BRANDS = JSON.parse(document.getElementById('brands').textContent);
 const SAVE_KEY = 'ytTycoon.v1';
 
 let S = null;            // 게임 상태
-let tab = 'make';
+let tab = null;            // 열린 아래 창 (null = 닫힘)
+const SHEET_TITLES = { make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
 let speedIdx = 0;
 let paused = false;
 let modal = null;        // { type, ... }
@@ -177,11 +205,11 @@ function renderTop() {
       ${C.speeds.map((x, i) => `<button data-a="speed" data-i="${i}" class="${!paused && i === speedIdx ? 'on' : ''}">${x}배</button>`).join('')}
     </div>
   </div>
-  <div class="stats">
-    <div class="stat"><div class="k">돈</div><div class="v">${won(S.money)}</div></div>
-    <div class="stat"><div class="k">구독자</div><div class="v">${fmt(S.subs)}</div></div>
-    <div class="stat"><div class="k">체력 ${Math.round(S.stamina)}/${ms}</div><div class="bar"><i style="width:${S.stamina / ms * 100}%;background:${stCol}"></i></div></div>
-    <div class="stat"><div class="k">호감도</div><div class="v">${Math.round(S.favor)}</div></div>
+  <div class="pills">
+    <div class="pill" title="돈">💰 <b>${won(S.money)}</b></div>
+    <div class="pill" title="구독자">👥 <b>${fmt(S.subs)}</b></div>
+    <div class="pill" title="체력">⚡<div class="bar"><i style="width:${S.stamina / ms * 100}%;background:${stCol}"></i></div><span class="small">${Math.round(S.stamina)}</span></div>
+    <div class="pill" title="알고리즘 호감도">📈 <b>${Math.round(S.favor)}</b></div>
   </div>`;
 }
 
@@ -306,6 +334,26 @@ function renderLog() {
   return h;
 }
 
+function renderStatus() {
+  const j = S.job, burnt = S.gh < S.burnoutUntil;
+  let h = '';
+  if (burnt) h = `<div class="scard">🛌 번아웃 강제 휴식 · ${Math.ceil((S.burnoutUntil - S.gh) / 24)}일 남음</div>`;
+  else if (j && j.partTime) h = `<div class="scard">🏪 편의점 알바 중 · 끝나면 ${won(C.partTime.pay)}<div class="bar"><i style="width:${(1 - j.left / C.partTime.hours) * 100}%"></i></div></div>`;
+  else if (j) {
+    const total = C.stages.reduce((a, _, i) => a + E.stageHours(S, i), 0);
+    let done = 0; for (let i = 0; i < j.stage; i++) done += E.stageHours(S, i); done += E.stageHours(S, j.stage) * j.progress;
+    const hint = !S.routine.on && (S.stats_videos || 0) < 3 ? ' · 👆 방을 연타하면 빨라져요' : '';
+    h = `<div class="scard"><div class="row between"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎬 ${esc(j.card.topic)}</b><span class="mute small" style="white-space:nowrap">${C.stages[j.stage].name} ${j.stage + 1}/3${hint}</span></div><div class="bar"><i style="width:${done / total * 100}%"></i></div></div>`;
+  } else if (S.uploadReady) h = `<button class="cta primary" data-a="tab" data-k="make">📤 업로드할 썸네일 고르기</button>`;
+  else if (S.resting) h = `<div class="scard row between"><span>😴 휴식 중 · 체력 ${Math.round(S.stamina)}/${E.maxStamina(S)}</span><button data-a="wake" style="padding:4px 10px">그만 쉬기</button></div>`;
+  else if (S.routine.on) h = `<div class="scard">⚙️ 자동 루틴 작동 중 — 놔둬도 영상이 나옵니다</div>`;
+  else if (!S.pendingEvent) h = `<button class="cta primary" data-a="tab" data-k="make">🎬 새 영상 만들기</button>`;
+  const q = nextQuest();
+  if (q) h += `<div class="qline">🎯 ${q.text} <span>· ${won(q.reward)}</span></div>`;
+  return h;
+}
+let lastStatusHtml = '';
+
 function renderTabs() {
   const T = [['make', '🎬', '제작'], ['channel', '📊', '채널'], ['invest', '🛒', '투자'], ['shop', '🎁', '상점'], ['log', '📜', '기록']];
   const dot = { make: S.uploadReady && !S.routine.on, invest: canBuySomething() };
@@ -372,8 +420,20 @@ function render() {
   if (top !== lastTopHtml) document.getElementById('top').innerHTML = lastTopHtml = top;
   const tabsH = renderTabs();
   if (tabsH !== lastTabsHtml) document.getElementById('tabs').innerHTML = lastTabsHtml = tabsH;
-  const m = { make: renderMake, channel: renderChannel, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
-  if (m !== lastMainHtml) document.getElementById('main').innerHTML = lastMainHtml = m;
+  const st = renderStatus();
+  const stEl = document.getElementById('status');
+  if (st !== lastStatusHtml) stEl.innerHTML = lastStatusHtml = st;
+  const hudH = document.getElementById('top').offsetHeight;
+  stEl.style.top = (hudH - 2) + 'px';
+  Scene.setInset(hudH + stEl.offsetHeight + 4);
+  const sh = document.getElementById('sheet');
+  sh.classList.toggle('open', !!tab);
+  document.body.classList.toggle('sheet-open', !!tab);
+  if (tab) {
+    document.getElementById('sheettitle').textContent = SHEET_TITLES[tab];
+    const m = { make: renderMake, channel: renderChannel, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
+    if (m !== lastMainHtml) document.getElementById('main').innerHTML = lastMainHtml = m;
+  }
   // 토스트
   while (S._toasts.length) {
     const t = S._toasts.shift();
@@ -391,6 +451,7 @@ document.addEventListener('pointerdown', e => {
   down = { x: e.clientX, y: e.clientY };
   const b = e.target.closest('[data-a="tap"]');
   if (b && !b.disabled) { doTap(e); down = null; return; }
+  if (e.target.id === 'scene' && tab) { tab = null; down = null; render(); return; }
   if (e.target.id === 'scene' && S && S.job && !S.job.partTime) { const p = Scene.toLogical(e.clientX, e.clientY); if (E.tap(S)) Scene.tapFx(p.x, p.y); down = null; }
 });
 document.addEventListener('pointerup', e => {
@@ -416,11 +477,12 @@ function doTap(e) {
 function act(a, d) {
   const i = d.i !== undefined ? +d.i : null, k = d.k;
   switch (a) {
-    case 'tab': tab = k; window.scrollTo(0, 0); break;
+    case 'tab': tab = tab === k ? null : k; lastMainHtml = ''; document.getElementById('main').scrollTop = 0; break;
+    case 'closesheet': tab = null; break;
     case 'speed': speedIdx = i; paused = false; break;
     case 'pause': paused = !paused; break;
-    case 'start': E.startVideo(S, i); break;
-    case 'upload': E.upload(S, i); break;
+    case 'start': if (E.startVideo(S, i)) tab = null; break;
+    case 'upload': E.upload(S, i); tab = null; break;
     case 'rest': if (E.canWork(S)) S.resting = true; break;
     case 'wake': S.resting = false; break;
     case 'part': E.partTime(S); break;
@@ -434,13 +496,13 @@ function act(a, d) {
     case 'event': E.resolveEvent(S, i); break;
     case 'closemodal': modal = null; break;
     case 'reset': modal = { type: 'reset' }; break;
-    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '' }; lastMainHtml = lastTopHtml = lastTabsHtml = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
+    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '' }; lastMainHtml = lastTopHtml = lastTabsHtml = lastStatusHtml = ''; tab = null; document.getElementById('status').innerHTML = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
     case 'selpack': startSel.pack = k; break;
     case 'seltrait': startSel.trait = k; break;
     case 'begin': {
       const nm = (document.getElementById('chname').value || '').trim() || '나의 정보 채널';
       S = E.newGame({ channel: nm, trait: startSel.trait, pack: startSel.pack });
-      tab = 'make'; save(); break;
+      tab = null; save(); break;
     }
   }
   render();
