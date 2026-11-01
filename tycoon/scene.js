@@ -82,12 +82,30 @@
     const shirt = o.shirt || '#e5484d', shirtD = shade(shirt, 0.78), pants = o.pants || '#30406b', shoe = '#22252d';
     const f = o.frame || 0, step = o.moving ? [0, 1, 0, -1][f % 4] : 0;
     const back = o.dir === 'up';
+    const side = !o.lie && !o.sit && (o.dir === 'left' || o.dir === 'right');
     const blink = o.blink;
     x = R(x); y = R(y);
     if (!o.lie) shadow(x, y, 8, 2.6);
     const P2 = [];
     const add = (px, py, w, h, c) => P2.push([px, py, w, h, c]);
-    if (o.lie) {
+    if (side) {
+      // 오른쪽을 보는 모습으로 만든 뒤, 왼쪽이면 x를 거울처럼 뒤집는다
+      const st = o.moving ? [0, 1, 0, -1][f % 4] : 0;
+      const ty = y - 17 - (o.moving && f % 2 ? 1 : 0);
+      add(x - 2 - st * 2, y - 8, 3, 6, shade(pants, 0.8)); add(x - 2 - st * 2, y - 2, 4, 2, shoe);   // 뒷다리
+      add(x - 2 + st * 2, y - 8, 3, 6, pants); add(x - 2 + st * 2, y - 2, 5, 2, shoe);               // 앞다리
+      add(x - 4, ty + 1, 8, 9, shirt); add(x - 4, ty + 1, 2, 9, shirtD);                               // 몸통
+      if (o.box) { add(x + 2, ty + 2, 9, 9, '#c9975b'); add(x + 2, ty + 2, 9, 2, '#dcae74'); add(x + 3, ty + 4, 3, 2, skin); }
+      else { add(x - 1 + st * 2, ty + 2, 3, 7, shade(shirt, 0.9)); add(x - 1 + st * 2, ty + 9, 3, 2, skin); } // 팔
+      const hy = ty - 10;
+      add(x - 4, hy, 9, 10, skin);                                                                    // 머리
+      add(x - 5, hy - 1, 8, 4, hair); add(x - 5, hy, 3, 8, hair); add(x + 3, hy - 1, 2, 2, hair);    // 머리카락(뒤·위)
+      if (blink) add(x + 2, hy + 5, 2, 1, '#2a2a2a'); else add(x + 2, hy + 4, 2, 2, '#2a2a2a');      // 눈
+      add(x + 5, hy + 5, 1, 2, skinD);                                                                // 코
+      add(x + 1, hy + 7, 2, 1, '#f29b9b');                                                            // 볼
+      if (o.cap) { add(x - 5, hy - 2, 10, 3, o.cap); add(x + 4, hy, 4, 1, shade(o.cap, 0.7)); }
+      if (o.dir === 'left') for (const p of P2) p[0] = 2 * x - p[0] - p[2];
+    } else if (o.lie) {
       add(x - 14, y - 7, 9, 8, skin); add(x - 14, y - 8, 9, 4, hair); add(x - 15, y - 7, 2, 6, hair);
       if (!back) { add(x - 10, y - 4, 1, 1, '#2a2a2a'); }
     } else {
@@ -243,7 +261,9 @@
 
   function drawChairBack(S) { // 앉아 있을 때 의자 등받이가 몸 앞으로 오게
     const cx = L.spot.desk.x;
-    box(cx - 8, L.FT + 22, 16, 2, 10, '#454a58', '#363a46', '#15161b');
+    const y = L.spot.desk.y;
+    rect(cx - 1, y - 6, 2, 4, '#2b2e37');                                   // 등받이 기둥
+    box(cx - 7, y - 12, 14, 2, 5, '#4d5262', '#3a3e4b', '#15161b');          // 낮은 등받이 (허리 높이)
   }
 
   function drawFilm(S) {
@@ -334,7 +354,7 @@
     if (d < 0.8) { o.x = o.tx; o.y = o.ty; return false; }
     const st = Math.min(d, speed * dt);
     o.x += dx / d * st; o.y += dy / d * st;
-    o.dir = Math.abs(dy) > Math.abs(dx) ? (dy < 0 ? 'up' : 'down') : 'down';
+    o.dir = Math.abs(dx) > Math.abs(dy) * 0.8 ? (dx > 0 ? 'right' : 'left') : (dy < 0 ? 'up' : 'down');
     return true;
   }
 
