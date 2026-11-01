@@ -15,7 +15,20 @@ function mulberry32(a) {
   };
 }
 
+function botMove(s) {
+  // 같은 지역 다음 단계 집이 열렸고, 이사비 + 석 달 월세를 감당할 수 있으면 이사
+  const list = E.housesOf(s.region), i = list.indexOf(s.house), next = list[i + 1];
+  if (!next) return;
+  const H = E.HOUSES[next];
+  if (E.canMove(s, next).ok && s.money > E.moveCost(s, next) + H.rent) E.moveHouse(s, next);
+}
+function saving(s) {
+  const list = E.housesOf(s.region), next = list[list.indexOf(s.house) + 1];
+  if (!next || s.subs < E.HOUSES[next].unlock) return 0;
+  return E.moveCost(s, next) + E.HOUSES[next].rent;
+}
 function botBuy(s) {
+  if (s.money < saving(s)) return;      // 이사할 돈을 모으는 중
   // 루틴 먼저, 그다음 가장 싼 다음 아이템 (여유 자금 20% 남김), 그다음 싼 반복 업그레이드
   if (!s.routine.unlocked && s.money >= E.ROUTINE_PRICE * 1.2) E.buyRoutine(s);
   for (let guard = 0; guard < 5; guard++) {
@@ -31,8 +44,8 @@ function botBuy(s) {
   }
 }
 
-function play(pack, seed, minutes) {
-  const s = E.newGame({ pack, trait: 'planner', rng: mulberry32(seed) });
+function play(pack, seed, minutes, region) {
+  const s = E.newGame({ pack, region: region || 'city', trait: 'planner', rng: mulberry32(seed) });
   const dtReal = 0.5, marks = { 5: null, 15: null, 30: null, 60: null };
   let firstUploadSec = null;
   for (let t = 0; t < minutes * 60; t += dtReal) {
@@ -42,23 +55,26 @@ function play(pack, seed, minutes) {
       if (s.stamina < 50) s.resting = true; else E.startVideo(s, E.bestCardIdx(s));
     }
     botBuy(s);
+    if (!s.job && !s.uploadReady) botMove(s);
     E.advance(s, dtReal * E.ghPerRealSec(), dtReal);
     if (firstUploadSec === null && (s.stats_videos || 0) >= 1) firstUploadSec = t;
     const m = (t + dtReal) / 60;
-    if (m in marks && marks[m] === null) marks[m] = { subs: s.subs, money: s.money, q: E.baseQuality(s), vids: s.stats_videos || 0, mon: s.monetized };
+    if (m in marks && marks[m] === null) marks[m] = { subs: s.subs, money: s.money, q: E.baseQuality(s), vids: s.stats_videos || 0, mon: s.monetized, house: s.house };
   }
   return { marks, firstUploadSec, firstViews: s.firstVideoV || 0 };
 }
 
 const N = +process.argv[2] || 20;
 const median = a => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+const mode = a => { const c = {}; a.forEach(x => c[x] = (c[x] || 0) + 1); return Object.entries(c).sort((x, y) => y[1] - x[1])[0][0]; };
 console.log(`판 수 ${N}, 1배속, 탭 없음, 특성=기획력. 값은 중앙값.`);
-for (const pack of E.START_SETS) {
-  const runs = [];
-  for (let i = 0; i < N; i++) runs.push(play(pack, 1000 + i, 60));
-  const row = [5, 15, 30, 60].map(m => `${m}분 ${E.fmt(median(runs.map(r => r.marks[m].subs)))}명`);
+const row = (label, runs) => {
+  const cols = [5, 15, 30, 60].map(m => `${m}분 ${E.fmt(median(runs.map(r => r.marks[m].subs)))}명`);
   const q60 = median(runs.map(r => r.marks[60].q)).toFixed(0);
-  const v60 = median(runs.map(r => r.marks[60].vids));
-  const monAt30 = runs.filter(r => r.marks[30].mon).length;
-  console.log(`${pack.padEnd(13)} | ${row.join(' | ')} | 60분 품질 ${q60}, 영상 ${v60}편 | 30분에 수익화 ${monAt30}/${N} | 첫 영상 조회 ${E.fmt(median(runs.map(r => r.firstViews)))}`);
-}
+  const house = E.HOUSES[mode(runs.map(r => r.marks[60].house))].name;
+  console.log(`${label.padEnd(20)} | ${cols.join(' | ')} | 60분 품질 ${q60}, 집 ${house}, 돈 ${E.fmt(median(runs.map(r => r.marks[60].money)))}`);
+};
+console.log('— 지역별 (무료 시작)');
+for (const region of Object.keys(E.REGIONS)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, region)); row(region, runs); }
+console.log('— 시작 세트별 (도시)');
+for (const pack of E.START_SETS.slice(1)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play(pack, 1000 + i, 60, 'city')); row(pack, runs); }

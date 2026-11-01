@@ -93,7 +93,7 @@
   .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
   .tg.on { background: var(--green); }
   .tg.on::after { left: 23px; }
-  .tabs { height: calc(64px + env(safe-area-inset-bottom)); position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(5, 1fr); background: rgba(14,17,24,.94); backdrop-filter: blur(6px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 6; }
+  .tabs { height: calc(64px + env(safe-area-inset-bottom)); position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(6, 1fr); background: rgba(14,17,24,.94); backdrop-filter: blur(6px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 6; }
   .tabs button { background: transparent; border-radius: 0; padding: 10px 0 12px; font-size: 12px; color: var(--mute); }
   .tabs button .ic { display: block; font-size: 19px; }
   .tabs button.on { color: var(--text); font-weight: 700; }
@@ -155,7 +155,7 @@ const SAVE_KEY = 'ytTycoon.v1';
 
 let S = null;            // 게임 상태
 let tab = null;            // 열린 아래 창 (null = 닫힘)
-const SHEET_TITLES = { make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
+const SHEET_TITLES = { home: '🏠 집', make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
 let speedIdx = 0;
 let paused = false;
 let modal = null;        // { type, ... }
@@ -202,7 +202,7 @@ function renderTop() {
   const stCol = S.stamina < 25 ? 'var(--red)' : S.stamina < 50 ? 'var(--yellow)' : 'var(--green)';
   return `
   <div class="row between">
-    <div><div class="ch">${esc(S.channel)}</div><div class="date">${E.gameDate(S.gh)} · 1일=${C.realSecPerGameDay / C.speeds[speedIdx]}초</div></div>
+    <div><div class="ch">${esc(S.channel)}</div><div class="date">${E.REGIONS[S.region].icon} ${E.HOUSES[S.house].name} · ${E.gameDate(S.gh)}</div></div>
     <div class="row speeds">
       <button data-a="pause" class="${paused ? 'on' : ''}">${paused ? '▶' : '⏸'}</button>
       ${C.speeds.map((x, i) => `<button data-a="speed" data-i="${i}" class="${!paused && i === speedIdx ? 'on' : ''}">${x}배</button>`).join('')}
@@ -245,10 +245,10 @@ function renderMake() {
       const [lo, hi] = E.cardViewRange(S, c);
       const dl = (c.expiresGh - S.gh) / 24;
       h += `<div class="trend"><div class="row between"><span class="t">${esc(c.topic)}</span>${dl < 4 ? '<span class="tag warn">곧 식음</span>' : ''}</div>
-        <div class="row" style="margin:6px 0"><span class="tag ${c.comp === '높음' ? 'hot' : ''}">경쟁 ${c.comp}</span><span class="tag">유효 ${Math.max(0, dl).toFixed(0)}일</span><span class="tag">예상 ${fmt(lo)}~${fmt(hi)}회</span></div>
+        <div class="row" style="margin:6px 0">${c.local ? `<span class="tag good">📍 ${E.REGIONS[S.region].name} 주제</span>` : ''}<span class="tag ${c.comp === '높음' ? 'hot' : ''}">경쟁 ${c.comp}</span><span class="tag">유효 ${Math.max(0, dl).toFixed(0)}일</span><span class="tag">예상 ${fmt(lo)}~${fmt(hi)}회</span></div>
         <button class="primary" style="width:100%" data-a="start" data-i="${i}" ${S.resting || S.pendingEvent ? 'disabled' : ''}>이 주제로 제작 (약 ${((E.stageHours(S, 0) + E.stageHours(S, 1) + E.stageHours(S, 2)) / 24).toFixed(1)}일)</button></div>`;
     });
-    h += `<div class="grid2"><button data-a="rest" ${S.resting ? 'disabled' : ''}>😴 휴식 (체력 회복)</button><button data-a="part" ${S.stamina < C.partTime.stamina || S.resting ? 'disabled' : ''}>🏪 알바 하루 (+${won(C.partTime.pay)})</button></div></div>`;
+    h += `<div class="grid2"><button data-a="rest" ${S.resting ? 'disabled' : ''}>😴 휴식 (체력 회복)</button><button data-a="part" ${S.stamina < C.partTime.stamina || S.resting ? 'disabled' : ''}>🏪 알바 하루 (+${won(E.partPay(S))})</button></div></div>`;
     if (S.resting) h = `<div class="card"><h3>😴 휴식 중</h3><div class="bar big"><i style="width:${S.stamina / E.maxStamina(S) * 100}%"></i></div><div class="row between" style="margin-top:8px"><span class="mute small">체력이 가득 차면 끝납니다</span><button data-a="wake">그만 쉬기</button></div></div>` + h;
   }
 
@@ -294,14 +294,43 @@ function renderChannel() {
 }
 
 // ───────── 화면: 투자 ─────────
+function houseCard(id, cur) {
+  const H = E.HOUSES[id], f = H.furnished || {};
+  const furn = Object.keys(f).map(k => itemName(k, f[k])).join(', ');
+  const eff = [H.q ? `품질 ${H.q > 0 ? '+' : ''}${H.q}` : '', H.regen ? `휴식 회복 ${H.regen > 0 ? '+' : ''}${H.regen}` : '', H.staff ? `책상 ${H.staff + 1}개` : ''].filter(Boolean).join(' · ');
+  const cm = E.canMove(S, id);
+  let btn;
+  if (cur) btn = '<span class="tag good">지금 사는 곳</span>';
+  else btn = `<button class="ok" data-a="move" data-k="${id}" ${cm.ok ? '' : 'disabled'}>${won(E.moveCost(S, id))}</button>`;
+  return `<div class="item"><div><div class="name">${E.REGIONS[H.region].icon} ${H.name} <span class="mute small">월세 ${H.rent ? won(H.rent) : '없음'}</span></div>
+    <div class="mute small">${H.desc}${furn ? ` · 가구: ${furn}` : ''}${eff ? ` · ${eff}` : ''}</div>
+    ${!cur && !cm.ok && cm.why ? `<div class="small" style="color:var(--yellow)">${cm.why}</div>` : ''}</div>${btn}</div>`;
+}
+function renderHome() {
+  const H = E.HOUSES[S.house], Rg = E.REGIONS[S.region];
+  let h = `<div class="card"><h3>${Rg.icon} ${Rg.name} · ${H.name}</h3><div class="mute small">${Rg.desc}</div>
+    <div class="grid2" style="margin-top:8px"><div class="kv"><div class="k">월세 (30일마다)</div><div class="v">${H.rent ? won(H.rent) : '없음'}</div></div>
+    <div class="kv"><div class="k">다음 월세까지</div><div class="v">${Math.max(0, Math.ceil((S.nextRentGh - S.gh) / 24))}일</div></div></div>
+    ${S.money < 0 ? '<div class="small" style="color:var(--red);margin-top:6px">⚠️ 월세가 밀렸습니다. 두 달 밀리면 가장 싼 집으로 옮겨집니다.</div>' : ''}</div>`;
+  h += `<div class="card"><h3>🏠 ${Rg.name}의 집</h3><div class="mute small" style="margin-bottom:4px">이사하면 ${E.MOVE_DAYS}일 동안 영상을 못 만듭니다. 집에 딸린 가구는 두고 갑니다.</div>`;
+  for (const id of E.housesOf(S.region)) h += houseCard(id, id === S.house);
+  h += `</div><div class="card"><h3>🧭 다른 지역으로 이사</h3><div class="mute small" style="margin-bottom:4px">지역을 옮기면 이사비가 1.5배이고 트렌드 주제가 바뀝니다.</div>`;
+  for (const r in E.REGIONS) if (r !== S.region) {
+    const Rr = E.REGIONS[r];
+    h += `<div class="mute small" style="margin-top:8px"><b style="color:var(--text)">${Rr.icon} ${Rr.name}</b> — ${Rr.desc}</div>`;
+    for (const id of E.housesOf(r)) if (S.subs >= E.HOUSES[id].unlock * 0.5 || E.housesOf(r).indexOf(id) === 0) h += houseCard(id, false);
+  }
+  return h + `</div>`;
+}
+
 function renderInvest() {
   let h = `<div class="card"><div class="row between"><span class="mute small">품질 ${Math.round(E.baseQuality(S))} · 한 편 제작 ${((E.stageHours(S, 0) + E.stageHours(S, 1) + E.stageHours(S, 2)) / 24).toFixed(1)}일 (기획 ${(E.stageHours(S, 0) / 24).toFixed(1)} / 촬영 ${(E.stageHours(S, 1) / 24).toFixed(1)} / 편집 ${(E.stageHours(S, 2) / 24).toFixed(1)})</span></div></div>`;
   for (const g in E.GROUPS) {
     h += `<div class="card"><h3>${{ gear: '📷', pc: '🖥️', space: '🏠', edu: '🎓' }[g]} ${E.GROUPS[g]}</h3>`;
     for (const k in E.EQUIP) {
       const d = E.EQUIP[k]; if (d.group !== g) continue;
-      const cur = S.equip[k], n = E.equipNext(S, k);
-      const title = g === 'edu' ? d.name : `${d.name}: ${itemName(k, cur)}`;
+      const cur = S.equip[k], n = E.equipNext(S, k), furn = E.effEquip(S)[k] > cur;
+      const title = g === 'edu' ? d.name : `${d.name}: ${itemName(k, cur)}${furn ? ` <span class="tag good">집 가구: ${itemName(k, E.effEquip(S)[k])}</span>` : ''}`;
       if (n) h += `<div class="item"><div><div class="name">${title}</div><div class="mute small">${g === 'edu' ? '' : '→ ' + itemName(k, cur + 1) + ' · '}${effText(n)}</div></div><button class="ok" data-a="equip" data-k="${k}" ${S.money < n.price ? 'disabled' : ''}>${won(n.price)}</button></div>`;
       else h += `<div class="item"><div><div class="name">${title}</div><div class="mute small">${g === 'edu' ? '수강 완료' : '최고 단계'}</div></div><span class="tag good">완료</span></div>`;
     }
@@ -341,7 +370,8 @@ function renderStatus() {
   const j = S.job, burnt = S.gh < S.burnoutUntil;
   let h = '';
   if (burnt) h = `<div class="scard">🛌 번아웃 강제 휴식 · ${Math.ceil((S.burnoutUntil - S.gh) / 24)}일 남음</div>`;
-  else if (j && j.partTime) h = `<div class="scard">🏪 편의점 알바 중 · 끝나면 ${won(C.partTime.pay)}<div class="bar"><i style="width:${(1 - j.left / C.partTime.hours) * 100}%"></i></div></div>`;
+  else if (S.moving) { const m = S.moving; h = `<div class="scard">🚚 ${E.HOUSES[m.to].name}(으)로 이사 중 · ${Math.max(0, Math.ceil((m.untilGh - S.gh) / 24))}일 남음<div class="bar"><i style="width:${(S.gh - m.startGh) / (m.untilGh - m.startGh) * 100}%"></i></div></div>`; }
+  else if (j && j.partTime) h = `<div class="scard">🏪 알바 중 · 끝나면 ${won(E.partPay(S))}<div class="bar"><i style="width:${(1 - j.left / C.partTime.hours) * 100}%"></i></div></div>`;
   else if (j) {
     const total = C.stages.reduce((a, _, i) => a + E.stageHours(S, i), 0);
     let done = 0; for (let i = 0; i < j.stage; i++) done += E.stageHours(S, i); done += E.stageHours(S, j.stage) * j.progress;
@@ -358,8 +388,9 @@ function renderStatus() {
 let lastStatusHtml = '';
 
 function renderTabs() {
-  const T = [['make', '🎬', '제작'], ['channel', '📊', '채널'], ['invest', '🛒', '투자'], ['shop', '🎁', '상점'], ['log', '📜', '기록']];
-  const dot = { make: S.uploadReady && !S.routine.on, invest: canBuySomething() };
+  const T = [['make', '🎬', '제작'], ['home', '🏠', '집'], ['invest', '🛒', '투자'], ['channel', '📊', '채널'], ['shop', '🎁', '상점'], ['log', '📜', '기록']];
+  const nextH = E.housesOf(S.region)[E.housesOf(S.region).indexOf(S.house) + 1];
+  const dot = { make: S.uploadReady && !S.routine.on, invest: canBuySomething(), home: nextH && E.canMove(S, nextH).ok };
   return T.map(([k, ic, n]) => `<button data-a="tab" data-k="${k}" class="${tab === k ? 'on' : ''}"><span class="ic">${ic}</span>${n}${dot[k] ? '<span class="dot"></span>' : ''}</button>`).join('');
 }
 function canBuySomething() {
@@ -434,7 +465,7 @@ function render() {
   document.body.classList.toggle('sheet-open', !!tab);
   if (tab) {
     document.getElementById('sheettitle').textContent = SHEET_TITLES[tab];
-    const m = { make: renderMake, channel: renderChannel, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
+    const m = { home: renderHome, make: renderMake, channel: renderChannel, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
     if (m !== lastMainHtml) document.getElementById('main').innerHTML = lastMainHtml = m;
   }
   // 토스트
@@ -493,6 +524,7 @@ function act(a, d) {
     case 'outsource': S.routine.outsource = !S.routine.outsource; break;
     case 'buyroutine': E.buyRoutine(S); break;
     case 'equip': E.buyEquip(S, k); break;
+    case 'move': if (E.moveHouse(S, k)) { tab = null; if (window.MoveFx) MoveFx.play(S); } break;
     case 'skill': E.buySkill(S, k); break;
     case 'pack': modal = { type: 'confirmPack', id: k }; break;
     case 'confirmpack': E.applyPack(S, modal.id); modal = null; break;
@@ -533,8 +565,8 @@ window.addEventListener('beforeunload', save);
 (function boot() {
   Scene.init(document.getElementById('scene'));
   const saved = load();
-  if (saved && saved.v === 1) {
-    S = saved; S._toasts = [];
+  if (saved && (saved.v === 1 || saved.v === 2)) {
+    S = E.migrate(saved); S._toasts = [];
     const away = (Date.now() - (saved.savedAt || Date.now())) / 1000;
     const o = E.offline(S, away);
     if (o) modal = { type: 'offline', data: o };
