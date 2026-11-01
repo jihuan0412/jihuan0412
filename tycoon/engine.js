@@ -741,7 +741,7 @@
       return !list.some((p, i) => i !== ignoreIdx && DECOR_ITEMS[p.id].place === 'wall' && p.wall === pos.wall && Math.abs((pos.wall === 'back' ? p.x : p.z) - v) < 0.7 && Math.abs(p.y - pos.y) < 0.6);
     }
     const fp = footprint(id, pos.x, pos.z, pos.rot || 0);
-    if (fp[0] < -hx + 0.05 || fp[2] > hx - 0.05 || fp[1] < -hz + 0.05 || fp[3] > hz - 0.05) return false;
+    if (fp[0] < -hx - 0.01 || fp[2] > hx + 0.01 || fp[1] < -hz - 0.01 || fp[3] > hz + 0.01) return false;   // 벽에 붙여 놓을 수 있다
     if (!D.flat && L.blocked.some(b => overlap(fp, b))) return false;
     return !list.some((p, i) => i !== ignoreIdx && DECOR_ITEMS[p.id].place === 'floor' && !DECOR_ITEMS[p.id].flat === !D.flat && overlap(fp, footprint(p.id, p.x, p.z, p.rot || 0)));
   }
