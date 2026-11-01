@@ -496,5 +496,5 @@
   }
   function toLogical(cx, cy) { const b = cv.getBoundingClientRect(); return { x: (cx - b.left) / b.width * (cv.width / s), y: (cy - b.top) / b.height * (cv.height / s) }; }
 
-  root.Scene = { init, frame, tapFx, toLogical, resize, setInset };
+  root.Scene2D = { init, frame, tapFx, toLogical, resize, setInset };
 })(window);

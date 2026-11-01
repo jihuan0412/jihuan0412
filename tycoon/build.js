@@ -5,11 +5,15 @@ const fs = require('fs'), path = require('path');
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const engine = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
 const scene = fs.readFileSync(path.join(__dirname, 'scene.js'), 'utf8');
+const scene3d = fs.readFileSync(path.join(__dirname, 'scene3d.js'), 'utf8');
+const three = fs.readFileSync(path.join(__dirname, 'vendor', 'three.min.js'), 'utf8');
 const out = html
   .replace('<script src="engine.js"></script>', () => '<script>\n' + engine + '\n</script>')
+  .replace('<script src="vendor/three.min.js"></script>', () => '<script>\n' + three + '\n</script>')
   .replace('<script src="scene.js"></script>', () => '<script>\n' + scene + '\n</script>')
+  .replace('<script src="scene3d.js"></script>', () => '<script>\n' + scene3d + '\n</script>')
   .replace(', viewport-fit=cover', '');
-if (out.includes('src="engine.js"') || out.includes('src="scene.js"')) throw new Error('engine.js 합치기 실패');
+if (/<script src=/.test(out)) throw new Error('engine.js 합치기 실패');
 fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, 'dist', 'tycoon.html'), out);
 console.log('dist/tycoon.html', out.length, 'bytes');

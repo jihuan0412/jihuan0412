@@ -33,8 +33,9 @@
   .bar > i { display: block; height: 100%; background: var(--green); border-radius: 6px; }
   .bar.big { height: 12px; }
   body.playing { overflow: hidden; height: 100dvh; padding: 0; }
-  #scene { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); height: 100dvh; image-rendering: pixelated; background: #000; touch-action: manipulation; cursor: pointer; }
+  #scene { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); height: 100dvh; image-rendering: pixelated; background: transparent; touch-action: manipulation; cursor: pointer; }
   body.playing #scene { display: block; }
+  body.playing { background: radial-gradient(120% 70% at 50% 55%, #2a3350 0%, #151a2a 55%, #0b0d14 100%); }
   .hud { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); padding: calc(8px + env(safe-area-inset-top)) 10px 10px; z-index: 5; pointer-events: none;
     background: linear-gradient(180deg, rgba(8,10,16,.82) 0%, rgba(8,10,16,.55) 70%, rgba(8,10,16,0) 100%); }
   .hud button, .hud .stat { pointer-events: auto; }
@@ -143,7 +144,9 @@
 }
 </script>
 <script src="engine.js"></script>
+<script src="vendor/three.min.js"></script>
 <script src="scene.js"></script>
+<script src="scene3d.js"></script>
 <script>
 'use strict';
 const E = window.Engine, C = E.CONFIG, fmt = E.fmt;
