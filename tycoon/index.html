@@ -32,6 +32,8 @@
   .bar { height: 7px; background: #2a2f3b; border-radius: 6px; overflow: hidden; margin-top: 4px; }
   .bar > i { display: block; height: 100%; background: var(--green); border-radius: 6px; }
   .bar.big { height: 12px; }
+  #scene { display: none; width: 100%; height: auto; max-height: 36vh; object-fit: contain; image-rendering: pixelated; border-radius: 12px; margin-top: 8px; background: #000; touch-action: manipulation; cursor: pointer; }
+  body.playing #scene { display: block; }
   main { padding: 12px; }
   .card { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
   .card h3 { margin: 0 0 8px; font-size: 15px; }
@@ -92,7 +94,7 @@
 </style>
 </head>
 <body>
-<div class="top" id="top"></div>
+<div class="top"><div id="top"></div><canvas id="scene" aria-label="방 안 장면 — 탭하면 작업 독려"></canvas></div>
 <main id="main"></main>
 <nav class="tabs" id="tabs"></nav>
 <div class="toasts" id="toasts"></div>
@@ -114,6 +116,7 @@
 }
 </script>
 <script src="engine.js"></script>
+<script src="scene.js"></script>
 <script>
 'use strict';
 const E = window.Engine, C = E.CONFIG, fmt = E.fmt;
@@ -199,7 +202,7 @@ function renderMake() {
       h += `<div class="stage"><div class="row between"><span>${i < j.stage ? '✅' : i === j.stage ? '▶' : '·'} ${st.name}</span><span class="mute">${left !== null ? '남은 ' + (left / 24).toFixed(1) + '일' : ''}</span></div><div class="bar"><i style="width:${p * 100}%"></i></div></div>`;
     });
     h += `<button class="tapbtn" data-a="tap" ${burnt || S.resting ? 'disabled' : ''}>💪 작업 독려 (연타!)</button>
-      <div class="mute small" style="margin-top:6px">한 번 누를 때마다 작업이 ${C.tapHours}시간씩 빨라집니다. 체력도 그만큼 씁니다.</div></div>`;
+      <div class="mute small" style="margin-top:6px">위의 방 화면을 탭해도 됩니다. 한 번에 작업 ${C.tapHours}시간 진척, 체력도 그만큼 씁니다.</div></div>`;
   } else if (S.uploadReady) {
     const u = S.uploadReady;
     h += `<div class="card"><h3>📤 업로드 준비: ${esc(u.card.topic)}</h3>
@@ -363,6 +366,7 @@ function render() {
     if (keep) startSel.channel = keep.value;
     document.getElementById('modal').innerHTML = lastModalHtml = modalHtml;
   }
+  document.body.classList.toggle('playing', !!S);
   if (!S) return;
   const top = renderTop();
   if (top !== lastTopHtml) document.getElementById('top').innerHTML = lastTopHtml = top;
@@ -383,7 +387,12 @@ function render() {
 
 // ───────── 입력 (렌더 중 DOM이 바뀌어도 눌리도록 pointerup + 이동 거리 검사) ─────────
 let down = null;
-document.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; const b = e.target.closest('[data-a="tap"]'); if (b && !b.disabled) { doTap(e); down = null; } });
+document.addEventListener('pointerdown', e => {
+  down = { x: e.clientX, y: e.clientY };
+  const b = e.target.closest('[data-a="tap"]');
+  if (b && !b.disabled) { doTap(e); down = null; return; }
+  if (e.target.id === 'scene' && S && S.job && !S.job.partTime) { const p = Scene.toLogical(e.clientX, e.clientY); if (E.tap(S)) Scene.tapFx(p.x, p.y); down = null; }
+});
 document.addEventListener('pointerup', e => {
   if (!down) return;
   const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
@@ -446,6 +455,7 @@ function loop(now) {
   if (S && !paused && !modal) {
     E.advance(S, dt * C.speeds[speedIdx] * E.ghPerRealSec(), dt);
   }
+  if (S) Scene.frame(S, paused || modal ? 0 : dt, C.speeds[speedIdx]);
   saveAcc += dt; renderAcc += dt;
   if (saveAcc > 5) { saveAcc = 0; save(); }
   if (renderAcc > 0.12) { renderAcc = 0; render(); }
@@ -456,6 +466,7 @@ window.addEventListener('beforeunload', save);
 
 // 시작
 (function boot() {
+  Scene.init(document.getElementById('scene'));
   const saved = load();
   if (saved && saved.v === 1) {
     S = saved; S._toasts = [];
