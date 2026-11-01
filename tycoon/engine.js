@@ -140,9 +140,10 @@
     class_pack: { name: '원데이 클래스 패키지', price: 1100, once: true,
       desc: '편집 기초 강의 + 썸네일 디자인 강의 + 기획·대본 강의',
       give: { equip: { edu_edit: 1, edu_thumb: 1, edu_plan: 1 } } },
-    full_set: { name: '크리에이터 풀세트', price: 5500, once: true,
-      desc: '미러리스 카메라 + 램 32GB + 보급형 그래픽카드 + 8코어 CPU + 작업 루틴 세팅',
-      give: { equip: { camera: 1, ram: 2, gpu: 1, cpu: 1 }, routine: true } },
+    // 두 입문 세트를 합친 묶음 (따로 사면 ₩3,300). 60분 성장 무료의 약 3배 — 미러리스 카메라를 넣으면 9배로 뛰어 뺐다.
+    full_set: { name: '크리에이터 풀세트', price: 2900, once: true,
+      desc: '입문 PC 팩 + 초보 장비 세트 (램 16GB · SATA SSD · 편집 소프트웨어 구독 · USB 마이크 · 링라이트 · 방음 커튼)',
+      give: { equip: { ram: 1, ssd: 1, sw: 1, mic: 1, light: 1, space: 1 } } },
     studio: { name: '홈 스튜디오 꾸미기', price: 3300, once: true,
       desc: '홈 스튜디오 + 3점 조명 + NVMe SSD',
       give: { equip: { space: 2, light: 2, ssd: 2 } } },

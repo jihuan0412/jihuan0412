@@ -471,10 +471,12 @@ function renderInvest() {
 function renderShop() {
   let h = `<div class="mock">⚠️ 모의 결제입니다. 누르면 아이템이 바로 지급되고 실제로 돈은 나가지 않습니다. 결제 상품은 모두 게임머니로도 살 수 있는 장비·컴퓨터·공간·강의이고, 구독자나 게임머니는 팔지 않습니다.</div>`;
   for (const id in E.PACKS) {
-    const p = E.PACKS[id], owned = p.once && S.purchases[id];
+    const p = E.PACKS[id], eq = (p.give && p.give.equip) || {};
+    const have = Object.keys(eq).length && Object.keys(eq).every(k => S.equip[k] >= eq[k]) && !(p.give.routine && !S.routine.unlocked);
+    const owned = (p.once && S.purchases[id]) || have;
     h += `<div class="card"><div class="row between"><h3>${p.name}</h3><span class="price">₩${p.price.toLocaleString('ko-KR')}</span></div>
       <div class="small">${p.desc}</div><div class="mute small" style="margin:4px 0 8px">게임 안에서 따로 사면 ${won(packValue(p))}</div>
-      <button class="${owned ? '' : 'primary'}" style="width:100%" data-a="pack" data-k="${id}" ${owned ? 'disabled' : ''}>${owned ? '구매 완료' : '구매 (모의 결제)'}</button></div>`;
+      <button class="${owned ? '' : 'primary'}" style="width:100%" data-a="pack" data-k="${id}" ${owned ? 'disabled' : ''}>${S.purchases[id] ? '구매 완료' : owned ? '이미 다 갖고 있음' : '구매 (모의 결제)'}</button></div>`;
   }
   h += `<div class="mute small">모의 결제 누적: ₩${S.cashSpent.toLocaleString('ko-KR')}</div>`;
   return h;
