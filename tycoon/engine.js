@@ -194,6 +194,21 @@
     campstudio:{ region: 'mountain', name: '캠핑장 스튜디오', rent: 400000, move: 1500000, unlock: 10000, size: [10, 8], wall: 'log', floor: 'wood', furnished: { space: 2, light: 1 }, q: 3, regen: 1, staff: 3, desc: '캠핑장 관리동을 통째로 빌렸다.' },
     resort:    { region: 'mountain', name: '산속 리조트 스튜디오', rent: 1800000, move: 6000000, unlock: 100000, size: [12, 10], wall: 'white', floor: 'wood', furnished: { space: 3, light: 2 }, q: 5, regen: 1.5, staff: 6, desc: '숲속 리조트 한 동을 스튜디오로.' },
   };
+  // 방 안 고정 가구 위치 (scene3d.js의 배치와 같은 식). 꾸미기 아이템이 이 자리와 겹치지 않게 한다.
+  function roomLayout(houseId) {
+    const H = HOUSES[houseId], RW = H.size[0], RD = H.size[1], hx = RW / 2, hz = RD / 2;
+    const L = { RW, RD, desk: { x: -hx + 1.95, z: -hz + 0.55 }, film: { x: hx - 1.25, z: -hz + 1.55 }, bed: { x: -hx + 0.85, z: hz - 1.35 }, door: { z: -hz + Math.min(2.1, RD * 0.32) } };
+    // 막힌 영역(사각형 x0,z0,x1,z1): 책상+의자, 침대, 촬영 구역(스툴~삼각대), 문 앞 통로
+    const bw = RW <= 6 ? 1.1 : 1.5;
+    L.blocked = [
+      [L.desk.x - 1.3, -hz, L.desk.x + 1.75, L.desk.z + 1.3],
+      [L.bed.x - bw / 2, L.bed.z - 1.3, L.bed.x + bw / 2, L.bed.z + 1.3],
+      [L.film.x - 1.0, -hz, hx, Math.min(L.film.z + 2.3, hz)],
+      [-hx, L.door.z - 0.6, -hx + 1.0, L.door.z + 0.6],
+    ];
+    return L;
+  }
+
   // ───────────────────────── AI 제작 ─────────────────────────
   // 구독 단계(돈으로 산다) × 숙련도(써야 오른다). 단계마다 '직접 / AI / 직원' 중 누가 할지 정한다.
   const AI_PLANS = [
@@ -220,6 +235,56 @@
     community: { name: '커뮤니티 매니저', icon: '💬', salary: 120000, desc: '악플 피해 절반, 구독 전환 +5%' },
   };
   const NAMES = ['김하늘', '이도윤', '박서연', '최민준', '정예린', '강지호', '윤수아', '임태오', '한소율', '오지안', '서준우', '신다은', '권하람', '황시우', '송유나'];
+
+  // ───────────────────────── 방 꾸미기 ─────────────────────────
+  // place: floor(바닥, 칸 단위 w×d) / wall(뒷벽·왼쪽 벽) / theme(벽지·바닥재). 3D 모양은 decor.js가 id로 만든다.
+  // cozy: 아늑함 점수(휴식 회복·영상 품질에 소폭 반영, 상한 있음)
+  const DECOR_CATS = { furniture: '가구', light: '조명', plant: '식물', wall: '벽 장식', collect: '수집품', fun: '재미', theme: '벽지·바닥' };
+  const DECOR_ITEMS = {
+    sofa_small:   { cat: 'furniture', name: '2인 소파', price: 180000, place: 'floor', w: 2, d: 1, cozy: 3 },
+    beanbag:      { cat: 'furniture', name: '빈백 쿠션', price: 60000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    bookshelf:    { cat: 'furniture', name: '책장', price: 90000, place: 'floor', w: 2, d: 1, cozy: 2 },
+    low_table:    { cat: 'furniture', name: '좌식 테이블', price: 50000, place: 'floor', w: 2, d: 1, cozy: 1 },
+    gaming_chair: { cat: 'furniture', name: '게이밍 의자', price: 250000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    wardrobe:     { cat: 'furniture', name: '옷장', price: 150000, place: 'floor', w: 2, d: 1, cozy: 1 },
+    fridge_mini:  { cat: 'furniture', name: '미니 냉장고', price: 120000, place: 'floor', w: 1, d: 1, cozy: 1 },
+    piano:        { cat: 'furniture', name: '디지털 피아노', price: 900000, place: 'floor', w: 3, d: 1, cozy: 3, unlock: 5000 },
+    hammock:      { cat: 'furniture', name: '실내 해먹', price: 300000, place: 'floor', w: 3, d: 1, cozy: 4, unlock: 3000 },
+    floor_lamp:   { cat: 'light', name: '스탠드 조명', price: 70000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    string_lights:{ cat: 'light', name: '알전구 줄조명', price: 30000, place: 'wall', cozy: 3 },
+    neon_heart:   { cat: 'light', name: '하트 네온사인', price: 120000, place: 'wall', cozy: 2 },
+    lava_lamp:    { cat: 'light', name: '라바 램프', price: 45000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    moon_lamp:    { cat: 'light', name: '달 무드등', price: 40000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    monstera:     { cat: 'plant', name: '몬스테라', price: 60000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    cactus:       { cat: 'plant', name: '선인장 화분', price: 15000, place: 'floor', w: 1, d: 1, cozy: 1 },
+    bonsai:       { cat: 'plant', name: '분재', price: 200000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    flower_vase:  { cat: 'plant', name: '꽃병', price: 35000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    hanging_plant:{ cat: 'plant', name: '행잉 플랜트', price: 40000, place: 'wall', cozy: 2 },
+    poster_movie: { cat: 'wall', name: '영화 포스터', price: 20000, place: 'wall', cozy: 1 },
+    poster_game:  { cat: 'wall', name: '게임 포스터', price: 20000, place: 'wall', cozy: 1 },
+    painting:     { cat: 'wall', name: '유화 액자', price: 150000, place: 'wall', cozy: 2 },
+    clock:        { cat: 'wall', name: '벽시계', price: 25000, place: 'wall', cozy: 1 },
+    shelf_wall:   { cat: 'wall', name: '벽 선반', price: 40000, place: 'wall', cozy: 1 },
+    world_map:    { cat: 'wall', name: '세계 지도', price: 30000, place: 'wall', cozy: 1 },
+    figure_set:   { cat: 'collect', name: '피규어 진열장', price: 350000, place: 'floor', w: 1, d: 1, cozy: 2, unlock: 1000 },
+    vinyl:        { cat: 'collect', name: 'LP 턴테이블', price: 280000, place: 'floor', w: 1, d: 1, cozy: 3, unlock: 1000 },
+    guitar_stand: { cat: 'collect', name: '기타 스탠드', price: 200000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    trophy:       { cat: 'collect', name: '트로피 장식장', price: 500000, place: 'floor', w: 1, d: 1, cozy: 2, unlock: 10000 },
+    aquarium:     { cat: 'fun', name: '수족관', price: 450000, place: 'floor', w: 2, d: 1, cozy: 4, unlock: 2000 },
+    cat_tower:    { cat: 'fun', name: '캣타워 + 고양이', price: 400000, place: 'floor', w: 1, d: 1, cozy: 5, unlock: 3000 },
+    arcade:       { cat: 'fun', name: '오락기', price: 800000, place: 'floor', w: 1, d: 1, cozy: 3, unlock: 10000 },
+    treadmill:    { cat: 'fun', name: '러닝머신', price: 600000, place: 'floor', w: 1, d: 2, cozy: 1, unlock: 5000 },
+    disco_ball:   { cat: 'fun', name: '미러볼', price: 90000, place: 'floor', w: 1, d: 1, cozy: 2 },
+    rug_round:    { cat: 'theme', name: '동그란 러그', price: 40000, place: 'floor', w: 2, d: 2, cozy: 2, flat: true },
+    wp_pastel:    { cat: 'theme', name: '파스텔 벽지', price: 80000, place: 'theme', slot: 'wall', color: '#f6d6e0', cozy: 1 },
+    wp_mint:      { cat: 'theme', name: '민트 벽지', price: 80000, place: 'theme', slot: 'wall', color: '#cfeee2', cozy: 1 },
+    wp_navy:      { cat: 'theme', name: '네이비 벽지', price: 80000, place: 'theme', slot: 'wall', color: '#3a4a74', cozy: 1 },
+    wp_brick:     { cat: 'theme', name: '벽돌 벽지', price: 120000, place: 'theme', slot: 'wall', color: '#b5654a', cozy: 1 },
+    fl_white:     { cat: 'theme', name: '화이트 원목 바닥', price: 150000, place: 'theme', slot: 'floor', color: '#f2ede4', cozy: 1 },
+    fl_dark:      { cat: 'theme', name: '다크 원목 바닥', price: 150000, place: 'theme', slot: 'floor', color: '#8a6a50', cozy: 1 },
+    fl_carpet:    { cat: 'theme', name: '그레이 카펫', price: 180000, place: 'theme', slot: 'floor', color: '#b8bcc6', cozy: 2 },
+  };
+  const DECOR_CELL = 0.5;   // 바닥 배치 칸 크기 (m)
 
   const housesOf = region => Object.keys(HOUSES).filter(k => HOUSES[k].region === region);
   const MOVE_DAYS = 3;          // 이사 기간 (업로드 불가)
@@ -275,7 +340,8 @@
     const s = {
       v: 2, genre, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], candidates: [], candRefreshGh: 0,
       pipeline: ['self', 'self', 'self'], ai: { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true },
-      live: null, goods: null, membersOn: false, channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
+      live: null, goods: null, membersOn: false,
+      decor: { owned: {}, placed: {}, theme: {} }, channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
       // 한 단계 위 집에서 시작하면 그 이사비만큼 덜 가지고 시작
       gh: 0, money: REGIONS[region].startMoney - HOUSES[house].move, stamina: CONFIG.maxStaminaBase,
       subs: 0, totalViews: 0, watchHours: 0, favor: CONFIG.favor.start, monetized: false,
@@ -319,7 +385,8 @@
     const e = { q: 0, plan: 1, shoot: 1, edit: 1, thumb: 0, seo: 0, regen: 0 };
     const eq = effEquip(s);
     const H = HOUSES[s.house] || {}, Rg = REGIONS[s.region] || {};
-    e.q += H.q || 0; e.regen += (H.regen || 0) + (Rg.regen || 0);
+    const cb = s.decor ? cozyBonus(s) : { q: 0, regen: 0 };
+    e.q += (H.q || 0) + cb.q; e.regen += (H.regen || 0) + (Rg.regen || 0) + cb.regen;
     if (Rg.editMul) e.edit *= Rg.editMul;
     for (const k in EQUIP) {
       const t = EQUIP[k].tiers[eq[k] || 0];
@@ -644,6 +711,63 @@
     }
   }
 
+  // ───────── 방 꾸미기 ─────────
+  function buyDecor(s, id) {
+    const D = DECOR_ITEMS[id];
+    if (!D || s.money < D.price || s.subs < (D.unlock || 0)) return false;
+    s.money -= D.price; s.decor.owned[id] = (s.decor.owned[id] || 0) + 1;
+    if (D.place === 'theme') { s.decor.theme[s.house] = Object.assign({}, s.decor.theme[s.house], { [D.slot]: id }); }
+    log(s, `🛋️ ${D.name} 구매!${D.place === 'theme' ? ' 바로 적용했습니다.' : ' 집 메뉴의 꾸미기에서 놓을 수 있습니다.'}`, 'good');
+    return true;
+  }
+  function placedHere(s) { return s.decor.placed[s.house] || (s.decor.placed[s.house] = []); }
+  function unplacedCount(s, id) {
+    let used = 0; for (const h in s.decor.placed) used += s.decor.placed[h].filter(p => p.id === id).length;
+    return (s.decor.owned[id] || 0) - used;
+  }
+  function footprint(id, x, z, rot) {
+    const D = DECOR_ITEMS[id], w = (rot % 2 ? D.d : D.w) * DECOR_CELL, d = (rot % 2 ? D.w : D.d) * DECOR_CELL;
+    return [x - w / 2, z - d / 2, x + w / 2, z + d / 2];
+  }
+  const overlap = (a, b) => a[0] < b[2] - 0.01 && a[2] > b[0] + 0.01 && a[1] < b[3] - 0.01 && a[3] > b[1] + 0.01;
+  // 바닥: x,z는 놓을 중심(칸에 맞춤). 벽: wall='back'|'left', x(또는 z)는 벽을 따라가는 위치, y는 높이
+  function canPlace(s, id, pos, ignoreIdx) {
+    const D = DECOR_ITEMS[id]; if (!D || D.place === 'theme') return false;
+    const L = roomLayout(s.house), hx = L.RW / 2, hz = L.RD / 2;
+    const list = placedHere(s);
+    if (D.place === 'wall') {
+      const span = pos.wall === 'back' ? hx : hz, v = pos.wall === 'back' ? pos.x : pos.z;
+      if (Math.abs(v) > span - 0.4 || pos.y < 0.9 || pos.y > 2.6) return false;
+      return !list.some((p, i) => i !== ignoreIdx && DECOR_ITEMS[p.id].place === 'wall' && p.wall === pos.wall && Math.abs((pos.wall === 'back' ? p.x : p.z) - v) < 0.7 && Math.abs(p.y - pos.y) < 0.6);
+    }
+    const fp = footprint(id, pos.x, pos.z, pos.rot || 0);
+    if (fp[0] < -hx + 0.05 || fp[2] > hx - 0.05 || fp[1] < -hz + 0.05 || fp[3] > hz - 0.05) return false;
+    if (!D.flat && L.blocked.some(b => overlap(fp, b))) return false;
+    return !list.some((p, i) => i !== ignoreIdx && DECOR_ITEMS[p.id].place === 'floor' && !DECOR_ITEMS[p.id].flat === !D.flat && overlap(fp, footprint(p.id, p.x, p.z, p.rot || 0)));
+  }
+  function placeDecor(s, id, pos) {
+    if (unplacedCount(s, id) <= 0 || !canPlace(s, id, pos)) return false;
+    placedHere(s).push(Object.assign({ id }, pos));
+    return true;
+  }
+  function moveDecor(s, idx, pos) {
+    const p = placedHere(s)[idx]; if (!p || !canPlace(s, p.id, Object.assign({}, p, pos), idx)) return false;
+    Object.assign(p, pos); return true;
+  }
+  function removeDecor(s, idx) { const l = placedHere(s); if (!l[idx]) return false; l.splice(idx, 1); return true; }
+  function sellDecor(s, id) {
+    if (unplacedCount(s, id) <= 0) return false;
+    s.decor.owned[id]--; s.money += Math.round(DECOR_ITEMS[id].price * 0.5);
+    return true;
+  }
+  // 아늑함: 지금 집에 놓인 것 + 벽지·바닥재
+  function cozy(s) {
+    let c = 0; for (const p of placedHere(s)) c += DECOR_ITEMS[p.id].cozy || 0;
+    const th = s.decor.theme[s.house] || {}; for (const k in th) c += (DECOR_ITEMS[th[k]] || {}).cozy || 0;
+    return c;
+  }
+  function cozyBonus(s) { const c = cozy(s); return { q: Math.min(4, c * 0.12), regen: Math.min(1.5, c * 0.05) }; }
+
   // ───────── 라이브 방송 (구독자 3천부터) ─────────
   function canLive(s) { return s.subs >= 3000 && canWork(s) && !s.live && s.stamina >= 25; }
   function startLive(s) {
@@ -910,6 +1034,7 @@
     { id: 'ai1', text: 'AI로 영상 만들어 보기', done: s => s.ai && s.ai.made >= 1, reward: 100000 },
     { id: 'live1', text: '첫 라이브 방송', done: s => s.stats_live >= 1, reward: 200000 },
     { id: 'hire1', text: '첫 직원 채용', done: s => s.staff && s.staff.length >= 1, reward: 300000 },
+    { id: 'decor3', text: '방에 꾸미기 아이템 3개 놓기', done: s => s.decor && (s.decor.placed[s.house] || []).length >= 3, reward: 100000 },
     { id: 'v30', text: '영상 30편', done: s => (s.stats_videos || 0) >= 30, reward: 500000 },
     { id: 's5k', text: '구독자 5,000명', done: s => s.subs >= 5000, reward: 800000 },
     { id: 's10k', text: '구독자 10,000명 (1단계 목표)', done: s => s.subs >= 10000, reward: 2000000 },
@@ -1116,6 +1241,7 @@
     if (!s.region) { s.region = 'city'; s.house = 'oneroom'; s.moving = null; s.nextRentGh = s.gh + RENT_DAYS * 24; s.debtDays = 0; }
     for (const k in EQUIP) if (s.equip[k] == null) s.equip[k] = 0;
     if (!s.genre) s.genre = 'info';
+    if (!s.decor) s.decor = { owned: {}, placed: {}, theme: {} };
     if (!s.ai) s.ai = { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true };
     if (!s.pipeline) s.pipeline = ['self', 'self', 'self'];
     if (!s.staff) s.staff = [];
@@ -1137,6 +1263,7 @@
   }
 
   root.Engine = {
+    DECOR_CATS, DECOR_ITEMS, DECOR_CELL, roomLayout, buyDecor, placedHere, unplacedCount, canPlace, placeDecor, moveDecor, removeDecor, sellDecor, cozy, cozyBonus, footprint,
     SEASONS, SEASON_LOCAL, season, GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
     housesOf, effEquip, moveCost, canMove, moveHouse, partPay, migrate,
     AI_PLANS, AI_LEVELS, STAFF_ROLES, GOODS_COST, aiLevel, aiCredits, videoQuality, stageQuality, stageHoursBy, setPipeline, setAIPlan,
