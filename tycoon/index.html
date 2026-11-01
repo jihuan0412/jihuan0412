@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>유튜브 채널 운영 타이쿤</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #1a1d24; --card2: #222632; --line: #2c3140; --text: #e9ecf2; --mute: #8b93a7;
+    --red: #ff4b4b; --green: #3ccf7a; --yellow: #ffcc4d; --blue: #4da3ff; --purple: #b28cff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; font-size: 15px; }
+  body { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 76px; }
+  button { font: inherit; color: inherit; border: 0; border-radius: 10px; padding: 9px 12px; background: var(--card2); cursor: pointer; touch-action: manipulation; }
+  button.primary { background: var(--red); color: #fff; font-weight: 700; }
+  button.ok { background: var(--green); color: #06150c; font-weight: 700; }
+  button.ghost { background: transparent; border: 1px solid var(--line); }
+  button:disabled { opacity: .38; cursor: default; }
+  .top { position: sticky; top: 0; z-index: 5; background: rgba(15,17,21,.96); backdrop-filter: blur(6px); padding: 10px 12px 8px; border-bottom: 1px solid var(--line); }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .between { justify-content: space-between; }
+  .ch { font-weight: 800; font-size: 16px; }
+  .date { color: var(--mute); font-size: 12px; white-space: nowrap; }
+  .speeds { flex-shrink: 0; gap: 4px; }
+  .speeds button { padding: 5px 8px; font-size: 13px; white-space: nowrap; }
+  .speeds button.on { background: var(--blue); color: #001; font-weight: 700; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+  .stat { background: var(--card); border-radius: 10px; padding: 6px 8px; }
+  .stat .k { font-size: 11px; color: var(--mute); }
+  .stat .v { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 7px; background: #2a2f3b; border-radius: 6px; overflow: hidden; margin-top: 4px; }
+  .bar > i { display: block; height: 100%; background: var(--green); border-radius: 6px; }
+  .bar.big { height: 12px; }
+  main { padding: 12px; }
+  .card { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+  .card h3 { margin: 0 0 8px; font-size: 15px; }
+  .mute { color: var(--mute); font-size: 13px; }
+  .small { font-size: 12px; }
+  .tag { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--card2); color: var(--mute); margin-right: 4px; }
+  .tag.hot { background: #3a1616; color: #ff8a8a; }
+  .tag.good { background: #12301f; color: var(--green); }
+  .tag.warn { background: #33290f; color: var(--yellow); }
+  .tapbtn { width: 100%; padding: 18px; font-size: 18px; font-weight: 800; background: linear-gradient(180deg, #ff5d5d, #e23a3a); color: #fff; border-radius: 14px; margin-top: 10px; user-select: none; }
+  .tapbtn:active { transform: scale(.97); }
+  .stage { margin: 6px 0; }
+  .stage .row { font-size: 13px; }
+  .trend { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+  .trend .t { font-weight: 700; }
+  .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .thumb { background: var(--card2); border-radius: 10px; padding: 10px 6px; text-align: center; border: 1px solid var(--line); }
+  .thumb b { display: block; font-size: 18px; margin: 4px 0; }
+  .item { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: 0; }
+  .item .name { font-weight: 700; }
+  .item button { min-width: 96px; white-space: nowrap; }
+  .vid { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .vid:last-child { border-bottom: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .kv { background: var(--card2); border-radius: 10px; padding: 8px; }
+  .kv .k { font-size: 11px; color: var(--mute); }
+  .kv .v { font-weight: 800; }
+  .switch { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+  .tg { width: 46px; height: 26px; border-radius: 99px; background: #3a3f4d; position: relative; padding: 0; }
+  .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .tg.on { background: var(--green); }
+  .tg.on::after { left: 23px; }
+  .tabs { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: grid; grid-template-columns: repeat(5, 1fr); background: #12151b; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 6; }
+  .tabs button { background: transparent; border-radius: 0; padding: 10px 0 12px; font-size: 12px; color: var(--mute); }
+  .tabs button .ic { display: block; font-size: 19px; }
+  .tabs button.on { color: var(--text); font-weight: 700; }
+  .tabs .dot { display: inline-block; width: 7px; height: 7px; background: var(--red); border-radius: 50%; margin-left: 2px; vertical-align: top; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  .modal { background: var(--card); border-radius: 16px; padding: 16px; width: 100%; max-width: 420px; max-height: 90vh; overflow: auto; }
+  .modal h2 { margin: 0 0 8px; font-size: 18px; }
+  .modal .choices { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .modal .choices button { text-align: left; padding: 12px; }
+  .opt { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; background: var(--card2); text-align: left; width: 100%; }
+  .opt.sel { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset; }
+  input[type=text] { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font: inherit; }
+  .toasts { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); width: calc(100% - 24px); max-width: 456px; z-index: 15; pointer-events: none; display: flex; flex-direction: column-reverse; gap: 6px; }
+  .toast { background: #262b37; border-left: 4px solid var(--blue); padding: 8px 10px; border-radius: 8px; font-size: 13px; animation: tin .2s ease-out; box-shadow: 0 4px 14px rgba(0,0,0,.4); }
+  .toast.good { border-color: var(--green); }
+  .toast.bad { border-color: var(--red); }
+  @keyframes tin { from { opacity: 0; transform: translateY(-6px); } }
+  .float { position: fixed; pointer-events: none; font-weight: 800; color: var(--yellow); animation: up .7s ease-out forwards; z-index: 30; }
+  @keyframes up { to { transform: translateY(-40px); opacity: 0; } }
+  .mock { background: #33290f; color: var(--yellow); border-radius: 10px; padding: 8px 10px; font-size: 12px; margin-bottom: 10px; }
+  .price { font-weight: 800; color: var(--yellow); }
+  .log { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .log.good { color: #9ff0c2; } .log.bad { color: #ff9c9c; }
+</style>
+</head>
+<body>
+<div class="top" id="top"></div>
+<main id="main"></main>
+<nav class="tabs" id="tabs"></nav>
+<div class="toasts" id="toasts"></div>
+<div id="modal"></div>
+
+<!-- 브랜드 슬롯 데이터: 코드는 슬롯 ID만 안다. 후원 계약 시 이 블록의 이름만 바꾸면 실제 브랜드로 교체된다. -->
+<script type="application/json" id="brands">
+{
+  "cam_phone": "내 스마트폰", "cam_mirrorless": "루미나 M5 미러리스", "cam_cinema": "시네펄스 C1 시네마",
+  "mic_builtin": "폰 내장 마이크", "mic_usb": "보이스캐스트 USB 마이크", "mic_shotgun": "에코라인 샷건 + 오디오 인터페이스",
+  "light_none": "방 형광등", "light_ring": "링글로우 18인치 링라이트", "light_3point": "루멘스 3점 조명 키트",
+  "sw_free": "무료 편집 프로그램", "sw_sub": "컷마스터 구독", "sw_plugin": "컷마스터 프로 + 플러그인 팩",
+  "ram_8": "8GB (기본)", "ram_16": "메모리아 16GB", "ram_32": "메모리아 32GB", "ram_64": "메모리아 64GB",
+  "ssd_hdd": "HDD 1TB (기본)", "ssd_sata": "스위프트 SATA SSD 1TB", "ssd_nvme": "스위프트 NVMe SSD 2TB",
+  "cpu_4": "4코어 (기본)", "cpu_8": "코어웨이 8코어", "cpu_16": "코어웨이 16코어",
+  "gpu_igpu": "내장 그래픽 (기본)", "gpu_mid": "픽셀포스 보급형", "gpu_high": "픽셀포스 고급형",
+  "space_corner": "자취방 한켠", "space_curtain": "방음 커튼·흡음재 설치", "space_home": "홈 스튜디오 꾸미기", "space_studio": "작업실 임대",
+  "edu_none": "미수강", "edu_edit": "수강 완료", "edu_thumb": "수강 완료", "edu_plan": "수강 완료", "edu_growth": "수강 완료", "edu_mentor": "수강 완료"
+}
+</script>
+<script src="engine.js"></script>
+<script>
+'use strict';
+const E = window.Engine, C = E.CONFIG, fmt = E.fmt;
+const BRANDS = JSON.parse(document.getElementById('brands').textContent);
+const SAVE_KEY = 'ytTycoon.v1';
+
+let S = null;            // 게임 상태
+let tab = 'make';
+let speedIdx = 0;
+let paused = false;
+let modal = null;        // { type, ... }
+let lastMainHtml = '', lastTopHtml = '', lastTabsHtml = '', lastModalHtml = '';
+let startSel = { trait: 'planner', pack: 'free', channel: '' };
+
+// ───────── 저장 ─────────
+function save() {
+  if (!S) return;
+  const o = Object.assign({}, S); delete o.rng; o._toasts = [];
+  o.savedAt = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(o)); } catch (e) {}
+}
+function load() {
+  try { const t = localStorage.getItem(SAVE_KEY); return t ? JSON.parse(t) : null; } catch (e) { return null; }
+}
+
+// ───────── 보조 ─────────
+const won = n => '₩' + fmt(n);
+const pct = x => Math.round(x * 100) + '%';
+function effText(t) {
+  const a = [];
+  if (t.q) a.push(`품질 +${t.q}`);
+  if (t.plan) a.push(`기획 시간 -${pct(t.plan)}`);
+  if (t.shoot) a.push(`촬영 시간 -${pct(t.shoot)}`);
+  if (t.edit) a.push(`편집 시간 -${pct(t.edit)}`);
+  if (t.thumb) a.push(`썸네일 실력 +${t.thumb}`);
+  if (t.seo) a.push(`검색 최적화 +${t.seo}`);
+  if (t.regen) a.push(`휴식 회복 +${t.regen}`);
+  return a.join(', ');
+}
+function itemName(k, i) { return BRANDS[E.EQUIP[k].tiers[i].slot] || E.EQUIP[k].tiers[i].slot; }
+function nextQuest() { return E.QUESTS.find(q => !S.quests[q.id]); }
+function packValue(p) {
+  let v = 0;
+  if (p.give.equip) for (const k in p.give.equip) for (let i = 1; i <= p.give.equip[k]; i++) v += E.EQUIP[k].tiers[i].price;
+  if (p.give.routine) v += E.ROUTINE_PRICE;
+  return v;
+}
+
+// ───────── 화면: 상단 ─────────
+function renderTop() {
+  const ms = E.maxStamina(S);
+  const stCol = S.stamina < 25 ? 'var(--red)' : S.stamina < 50 ? 'var(--yellow)' : 'var(--green)';
+  return `
+  <div class="row between">
+    <div><div class="ch">${esc(S.channel)}</div><div class="date">${E.gameDate(S.gh)} · 1일=${C.realSecPerGameDay / C.speeds[speedIdx]}초</div></div>
+    <div class="row speeds">
+      <button data-a="pause" class="${paused ? 'on' : ''}">${paused ? '▶' : '⏸'}</button>
+      ${C.speeds.map((x, i) => `<button data-a="speed" data-i="${i}" class="${!paused && i === speedIdx ? 'on' : ''}">${x}배</button>`).join('')}
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="k">돈</div><div class="v">${won(S.money)}</div></div>
+    <div class="stat"><div class="k">구독자</div><div class="v">${fmt(S.subs)}</div></div>
+    <div class="stat"><div class="k">체력 ${Math.round(S.stamina)}/${ms}</div><div class="bar"><i style="width:${S.stamina / ms * 100}%;background:${stCol}"></i></div></div>
+    <div class="stat"><div class="k">호감도</div><div class="v">${Math.round(S.favor)}</div></div>
+  </div>`;
+}
+
+// ───────── 화면: 제작 ─────────
+function renderMake() {
+  let h = '';
+  const burnt = S.gh < S.burnoutUntil;
+  if (burnt) h += `<div class="card"><h3>🛌 번아웃 휴식 중</h3><div class="mute">${Math.ceil((S.burnoutUntil - S.gh) / 24)}일 남음. 직원을 두거나 체력을 관리해 다시 겪지 않게 하세요.</div></div>`;
+
+  const j = S.job;
+  if (j && j.partTime) {
+    h += `<div class="card"><h3>🏪 편의점 알바 중</h3><div class="bar big"><i style="width:${(1 - j.left / C.partTime.hours) * 100}%"></i></div><div class="mute small" style="margin-top:6px">끝나면 ${won(C.partTime.pay)}</div></div>`;
+  } else if (j) {
+    h += `<div class="card"><div class="row between"><h3>🎬 ${esc(j.card.topic)}</h3>${j.outsource ? '<span class="tag good">편집 외주</span>' : ''}</div>`;
+    C.stages.forEach((st, i) => {
+      const p = i < j.stage ? 1 : i === j.stage ? j.progress : 0;
+      const left = i === j.stage ? E.stageHours(S, i) * (1 - j.progress) : null;
+      h += `<div class="stage"><div class="row between"><span>${i < j.stage ? '✅' : i === j.stage ? '▶' : '·'} ${st.name}</span><span class="mute">${left !== null ? '남은 ' + (left / 24).toFixed(1) + '일' : ''}</span></div><div class="bar"><i style="width:${p * 100}%"></i></div></div>`;
+    });
+    h += `<button class="tapbtn" data-a="tap" ${burnt || S.resting ? 'disabled' : ''}>💪 작업 독려 (연타!)</button>
+      <div class="mute small" style="margin-top:6px">한 번 누를 때마다 작업이 ${C.tapHours}시간씩 빨라집니다. 체력도 그만큼 씁니다.</div></div>`;
+  } else if (S.uploadReady) {
+    const u = S.uploadReady;
+    h += `<div class="card"><h3>📤 업로드 준비: ${esc(u.card.topic)}</h3>
+      <div class="mute">완성 품질 <b style="color:var(--text)">${Math.round(u.q)}</b> · 썸네일을 고르세요 (예상 클릭률은 썸네일 실력이 높을수록 정확합니다)</div>
+      <div class="thumbs" style="margin-top:8px">${u.thumbs.map((t, i) => `<button class="thumb" data-a="upload" data-i="${i}">${t.style}<b>${(t.shown * 5).toFixed(1)}%</b><span class="mute small">예상 클릭률</span></button>`).join('')}</div></div>`;
+  } else if (!burnt) {
+    h += `<div class="card"><div class="row between"><h3>🔥 트렌드 주제</h3><span class="mute small">${Math.max(0, Math.ceil((S.trendRefreshAt - S.gh) / 24))}일 뒤 새 카드</span></div>`;
+    S.trends.forEach((c, i) => {
+      const [lo, hi] = E.cardViewRange(S, c);
+      const dl = (c.expiresGh - S.gh) / 24;
+      h += `<div class="trend"><div class="row between"><span class="t">${esc(c.topic)}</span>${dl < 4 ? '<span class="tag warn">곧 식음</span>' : ''}</div>
+        <div class="row" style="margin:6px 0"><span class="tag ${c.comp === '높음' ? 'hot' : ''}">경쟁 ${c.comp}</span><span class="tag">유효 ${Math.max(0, dl).toFixed(0)}일</span><span class="tag">예상 ${fmt(lo)}~${fmt(hi)}회</span></div>
+        <button class="primary" style="width:100%" data-a="start" data-i="${i}" ${S.resting || S.pendingEvent ? 'disabled' : ''}>이 주제로 제작 (약 ${((E.stageHours(S, 0) + E.stageHours(S, 1) + E.stageHours(S, 2)) / 24).toFixed(1)}일)</button></div>`;
+    });
+    h += `<div class="grid2"><button data-a="rest" ${S.resting ? 'disabled' : ''}>😴 휴식 (체력 회복)</button><button data-a="part" ${S.stamina < C.partTime.stamina || S.resting ? 'disabled' : ''}>🏪 알바 하루 (+${won(C.partTime.pay)})</button></div></div>`;
+    if (S.resting) h = `<div class="card"><h3>😴 휴식 중</h3><div class="bar big"><i style="width:${S.stamina / E.maxStamina(S) * 100}%"></i></div><div class="row between" style="margin-top:8px"><span class="mute small">체력이 가득 차면 끝납니다</span><button data-a="wake">그만 쉬기</button></div></div>` + h;
+  }
+
+  // 자동화
+  h += `<div class="card"><h3>⚙️ 반복 작업 맡기기</h3>`;
+  if (S.routine.unlocked) {
+    h += `<div class="switch"><div><b>자동 반복 루틴</b><div class="mute small">가장 좋은 주제를 골라 제작 → 업로드 → 체력이 낮으면 휴식, 계속 반복</div></div><button class="tg ${S.routine.on ? 'on' : ''}" data-a="routine"></button></div>`;
+  } else {
+    h += `<div class="item"><div><div class="name">자동 반복 루틴 만들기</div><div class="mute small">켜 두면 놔둬도 영상이 계속 나옵니다</div></div><button class="ok" data-a="buyroutine" ${S.money < E.ROUTINE_PRICE ? 'disabled' : ''}>${won(E.ROUTINE_PRICE)}</button></div>`;
+  }
+  h += `<div class="switch"><div><b>편집 외주</b><div class="mute small">편당 ${won(C.outsourceEdit.cost)} · 편집 단계 체력 소모 0, 시간 -30%</div></div><button class="tg ${S.routine.outsource ? 'on' : ''}" data-a="outsource"></button></div></div>`;
+
+  const q = nextQuest();
+  if (q) h += `<div class="card"><h3>🎯 다음 목표</h3><div>${q.text}</div><div class="mute small">보상 ${won(q.reward)}</div></div>`;
+  return h;
+}
+
+// ───────── 화면: 채널 ─────────
+function renderChannel() {
+  const wh = Math.min(1, S.watchHours / C.monetize.watchHours), sb = Math.min(1, S.subs / C.monetize.subs);
+  let h = `<div class="card"><h3>📊 채널 현황</h3><div class="grid2">
+    <div class="kv"><div class="k">총 조회수</div><div class="v">${fmt(S.totalViews)}</div></div>
+    <div class="kv"><div class="k">누적 수익</div><div class="v">${won(S.totalIncome)}</div></div>
+    <div class="kv"><div class="k">현재 영상 품질</div><div class="v">${Math.round(E.baseQuality(S))}</div></div>
+    <div class="kv"><div class="k">구독 전환율</div><div class="v">${(E.convRate(S) * 100).toFixed(2)}%</div></div>
+    <div class="kv"><div class="k">알고리즘 배율</div><div class="v">×${S.algoMul.toFixed(2)}</div></div>
+    <div class="kv"><div class="k">지난 영상 하루 조회</div><div class="v">${fmt(S.tailRate * (1 + 0.08 * E.seoLv(S)))}</div></div>
+  </div></div>`;
+  h += `<div class="card"><h3>${S.monetized ? '💰 수익 창출 중' : '🔒 수익 창출 조건'}</h3>`;
+  if (S.monetized) h += `<div class="mute">조회 1천 회당 광고 ${won(C.genre.adRpm * 1000)} + 제휴 링크 ${won(C.genre.affiliatePerView * 1000)}</div>`;
+  else h += `<div class="small">구독자 ${fmt(S.subs)} / 1,000</div><div class="bar"><i style="width:${sb * 100}%"></i></div>
+    <div class="small" style="margin-top:6px">시청 시간 ${fmt(S.watchHours)} / 4,000시간</div><div class="bar"><i style="width:${wh * 100}%"></i></div>
+    <div class="mute small" style="margin-top:6px">그 전까지는 설명란 제휴 링크 수익만 들어옵니다 (조회 1천 회당 ${won(C.genre.affiliatePerView * 1000)})</div>`;
+  h += `</div><div class="card"><h3>🎞️ 최근 영상</h3>`;
+  if (!S.videos.length) h += `<div class="mute">아직 영상이 없습니다.</div>`;
+  for (const v of S.videos.slice(0, 15)) {
+    const age = (S.gh - v.uploadGh) / 24;
+    h += `<div class="vid"><div class="row between"><b>${esc(v.topic)}</b>${v.viral ? '<span class="tag hot">바이럴</span>' : age < 3 ? '<span class="tag good">피크</span>' : ''}</div>
+      <div class="mute small">조회 ${fmt(v.views)} · 수익 ${won(v.income)} · 품질 ${Math.round(v.q)} · ${age < 1 ? '오늘' : Math.floor(age) + '일 전'}</div></div>`;
+  }
+  h += `</div><div class="card"><h3>🏆 목표</h3>${E.QUESTS.map(q => `<div class="log ${S.quests[q.id] ? 'good' : ''}">${S.quests[q.id] ? '✅' : '⬜'} ${q.text} <span class="mute small">(${won(q.reward)})</span></div>`).join('')}</div>`;
+  return h;
+}
+
+// ───────── 화면: 투자 ─────────
+function renderInvest() {
+  let h = `<div class="card"><div class="row between"><span class="mute small">품질 ${Math.round(E.baseQuality(S))} · 한 편 제작 ${((E.stageHours(S, 0) + E.stageHours(S, 1) + E.stageHours(S, 2)) / 24).toFixed(1)}일 (기획 ${(E.stageHours(S, 0) / 24).toFixed(1)} / 촬영 ${(E.stageHours(S, 1) / 24).toFixed(1)} / 편집 ${(E.stageHours(S, 2) / 24).toFixed(1)})</span></div></div>`;
+  for (const g in E.GROUPS) {
+    h += `<div class="card"><h3>${{ gear: '📷', pc: '🖥️', space: '🏠', edu: '🎓' }[g]} ${E.GROUPS[g]}</h3>`;
+    for (const k in E.EQUIP) {
+      const d = E.EQUIP[k]; if (d.group !== g) continue;
+      const cur = S.equip[k], n = E.equipNext(S, k);
+      const title = g === 'edu' ? d.name : `${d.name}: ${itemName(k, cur)}`;
+      if (n) h += `<div class="item"><div><div class="name">${title}</div><div class="mute small">${g === 'edu' ? '' : '→ ' + itemName(k, cur + 1) + ' · '}${effText(n)}</div></div><button class="ok" data-a="equip" data-k="${k}" ${S.money < n.price ? 'disabled' : ''}>${won(n.price)}</button></div>`;
+      else h += `<div class="item"><div><div class="name">${title}</div><div class="mute small">${g === 'edu' ? '수강 완료' : '최고 단계'}</div></div><span class="tag good">완료</span></div>`;
+    }
+    h += `</div>`;
+  }
+  h += `<div class="card"><h3>📈 반복 업그레이드</h3>`;
+  for (const k in E.SKILLS) {
+    const d = E.SKILLS[k], lv = S.skills[k], max = lv >= d.max, c = E.skillCost(S, k);
+    h += `<div class="item"><div><div class="name">${d.name} <span class="mute small">Lv.${lv}/${d.max}</span></div><div class="mute small">레벨당 ${d.desc}</div></div>${max ? '<span class="tag good">최대</span>' : `<button class="ok" data-a="skill" data-k="${k}" ${S.money < c ? 'disabled' : ''}>${won(c)}</button>`}</div>`;
+  }
+  return h + `</div>`;
+}
+
+// ───────── 화면: 상점 (모의 결제) ─────────
+function renderShop() {
+  let h = `<div class="mock">⚠️ 모의 결제입니다. 누르면 아이템이 바로 지급되고 실제로 돈은 나가지 않습니다. 결제 상품은 모두 게임머니로도 살 수 있는 장비·컴퓨터·공간·강의이고, 구독자나 게임머니는 팔지 않습니다.</div>`;
+  for (const id in E.PACKS) {
+    const p = E.PACKS[id], owned = p.once && S.purchases[id];
+    h += `<div class="card"><div class="row between"><h3>${p.name}</h3><span class="price">₩${p.price.toLocaleString('ko-KR')}</span></div>
+      <div class="small">${p.desc}</div><div class="mute small" style="margin:4px 0 8px">게임 안에서 따로 사면 ${won(packValue(p))}</div>
+      <button class="${owned ? '' : 'primary'}" style="width:100%" data-a="pack" data-k="${id}" ${owned ? 'disabled' : ''}>${owned ? '구매 완료' : '구매 (모의 결제)'}</button></div>`;
+  }
+  h += `<div class="mute small">모의 결제 누적: ₩${S.cashSpent.toLocaleString('ko-KR')}</div>`;
+  return h;
+}
+
+// ───────── 화면: 기록 ─────────
+function renderLog() {
+  let h = `<div class="card"><h3>📜 기록</h3>`;
+  for (const l of S.log.slice(0, 60)) h += `<div class="log ${l.kind}"><span class="mute small">${E.gameDate(l.gh)}</span><br>${esc(l.text)}</div>`;
+  h += `</div><div class="card"><h3>설정</h3><div class="mute small" style="margin-bottom:8px">자동 저장됩니다. 접속하지 않은 동안에는 지난 영상 수익이 25% 효율로 최대 2시간 분량 쌓입니다.</div>
+    <button class="ghost" data-a="reset">처음부터 다시 하기</button></div>`;
+  return h;
+}
+
+function renderTabs() {
+  const T = [['make', '🎬', '제작'], ['channel', '📊', '채널'], ['invest', '🛒', '투자'], ['shop', '🎁', '상점'], ['log', '📜', '기록']];
+  const dot = { make: S.uploadReady && !S.routine.on, invest: canBuySomething() };
+  return T.map(([k, ic, n]) => `<button data-a="tab" data-k="${k}" class="${tab === k ? 'on' : ''}"><span class="ic">${ic}</span>${n}${dot[k] ? '<span class="dot"></span>' : ''}</button>`).join('');
+}
+function canBuySomething() {
+  const c = E.cheapestNext(S);
+  return !!(c && S.money >= c.price);
+}
+
+// ───────── 모달 ─────────
+function renderModal() {
+  if (!S) return renderStart();
+  if (S.pendingEvent) {
+    const e = S.pendingEvent;
+    return `<div class="modal-bg"><div class="modal"><h2>${e.title}</h2><div>${e.text}</div><div class="choices">${e.choices.map((c, i) => `<button data-a="event" data-i="${i}">${c.label}</button>`).join('')}</div></div></div>`;
+  }
+  if (modal && modal.type === 'offline') {
+    const o = modal.data;
+    return `<div class="modal-bg"><div class="modal"><h2>👋 다시 오셨네요</h2><div class="mute">자리를 비운 ${Math.round(o.realSec / 60)}분 동안 지난 영상들이 일했습니다.</div>
+      <div class="grid2" style="margin-top:10px"><div class="kv"><div class="k">조회수</div><div class="v">+${fmt(o.views)}</div></div><div class="kv"><div class="k">수익</div><div class="v">+${won(o.money)}</div></div>
+      <div class="kv"><div class="k">구독자</div><div class="v">+${fmt(o.subs)}</div></div><div class="kv"><div class="k">체력</div><div class="v">가득</div></div></div>
+      <div class="choices"><button class="ok" data-a="closemodal">좋아요</button></div></div></div>`;
+  }
+  if (modal && modal.type === 'confirmPack') {
+    const p = E.PACKS[modal.id];
+    return `<div class="modal-bg"><div class="modal"><h2>${p.name}</h2><div>${p.desc}</div><div class="mock" style="margin-top:10px">모의 결제: ₩${p.price.toLocaleString('ko-KR')} (실제로 결제되지 않습니다)</div>
+      <div class="choices"><button class="primary" data-a="confirmpack">구매하기</button><button data-a="closemodal">취소</button></div></div></div>`;
+  }
+  if (modal && modal.type === 'reset') {
+    return `<div class="modal-bg"><div class="modal"><h2>처음부터 다시 할까요?</h2><div class="mute">지금 진행 상황이 지워집니다.</div><div class="choices"><button class="primary" data-a="confirmreset">지우고 새로 시작</button><button data-a="closemodal">취소</button></div></div></div>`;
+  }
+  return '';
+}
+function renderStart() {
+  const sets = E.START_SETS.map(id => {
+    if (id === 'free') return `<button class="opt ${startSel.pack === 'free' ? 'sel' : ''}" data-a="selpack" data-k="free"><b>무료로 시작</b><div class="mute small">스마트폰 · 내장 마이크 · 노트북 · 시작 자금 ${won(C.startMoney)}</div></button>`;
+    const p = E.PACKS[id];
+    return `<button class="opt ${startSel.pack === id ? 'sel' : ''}" data-a="selpack" data-k="${id}"><div class="row between"><b>${p.name}</b><span class="price">₩${p.price.toLocaleString('ko-KR')}</span></div><div class="mute small">${p.desc} (게임머니 ${won(packValue(p))} 상당)</div></button>`;
+  }).join('');
+  const traits = Object.entries(E.TRAITS).map(([k, t]) => `<button class="opt ${startSel.trait === k ? 'sel' : ''}" data-a="seltrait" data-k="${k}"><b>${t.name}</b><div class="mute small">${t.desc}</div></button>`).join('');
+  return `<div class="modal-bg"><div class="modal"><h2>📺 유튜브 채널 운영 타이쿤</h2>
+    <div class="mute small">정보·교육 채널 하나로 시작합니다. 1단계 목표: 60분 안에 구독자 1만 명.</div>
+    <h3 style="margin:14px 0 6px;font-size:14px">채널 이름</h3><input type="text" id="chname" maxlength="20" placeholder="나의 정보 채널" value="${esc(startSel.channel)}">
+    <h3 style="margin:14px 0 6px;font-size:14px">나의 특성</h3>${traits}
+    <h3 style="margin:14px 0 6px;font-size:14px">시작 세트</h3>${sets}
+    <div class="mock">유료 세트는 모의 결제입니다. 실제로 돈이 나가지 않습니다.</div>
+    <button class="primary" style="width:100%;padding:14px" data-a="begin">채널 개설하기</button></div></div>`;
+}
+
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// ───────── 렌더 ─────────
+function render() {
+  const modalHtml = renderModal();
+  if (modalHtml !== lastModalHtml) {
+    const keep = document.getElementById('chname');
+    if (keep) startSel.channel = keep.value;
+    document.getElementById('modal').innerHTML = lastModalHtml = modalHtml;
+  }
+  if (!S) return;
+  const top = renderTop();
+  if (top !== lastTopHtml) document.getElementById('top').innerHTML = lastTopHtml = top;
+  const tabsH = renderTabs();
+  if (tabsH !== lastTabsHtml) document.getElementById('tabs').innerHTML = lastTabsHtml = tabsH;
+  const m = { make: renderMake, channel: renderChannel, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
+  if (m !== lastMainHtml) document.getElementById('main').innerHTML = lastMainHtml = m;
+  // 토스트
+  while (S._toasts.length) {
+    const t = S._toasts.shift();
+    if (t.kind === 'info' && S.routine.on) continue;
+    const el = document.createElement('div'); el.className = 'toast ' + t.kind; el.textContent = t.text;
+    const box = document.getElementById('toasts'); box.prepend(el);
+    while (box.children.length > 3) box.lastChild.remove();
+    setTimeout(() => el.remove(), 3200);
+  }
+}
+
+// ───────── 입력 (렌더 중 DOM이 바뀌어도 눌리도록 pointerup + 이동 거리 검사) ─────────
+let down = null;
+document.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; const b = e.target.closest('[data-a="tap"]'); if (b && !b.disabled) { doTap(e); down = null; } });
+document.addEventListener('pointerup', e => {
+  if (!down) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+  down = null;
+  if (moved > 12) return;
+  const b = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-a]');
+  if (!b || b.disabled) return;
+  act(b.dataset.a, b.dataset);
+});
+document.addEventListener('pointercancel', () => { down = null; });
+
+function doTap(e) {
+  if (E.tap(S)) {
+    const f = document.createElement('div'); f.className = 'float'; f.textContent = '+' + C.tapHours + 'h';
+    f.style.left = (e.clientX - 14) + 'px'; f.style.top = (e.clientY - 20) + 'px';
+    document.body.appendChild(f); setTimeout(() => f.remove(), 700);
+    render();
+  }
+}
+
+function act(a, d) {
+  const i = d.i !== undefined ? +d.i : null, k = d.k;
+  switch (a) {
+    case 'tab': tab = k; window.scrollTo(0, 0); break;
+    case 'speed': speedIdx = i; paused = false; break;
+    case 'pause': paused = !paused; break;
+    case 'start': E.startVideo(S, i); break;
+    case 'upload': E.upload(S, i); break;
+    case 'rest': if (E.canWork(S)) S.resting = true; break;
+    case 'wake': S.resting = false; break;
+    case 'part': E.partTime(S); break;
+    case 'routine': S.routine.on = !S.routine.on; break;
+    case 'outsource': S.routine.outsource = !S.routine.outsource; break;
+    case 'buyroutine': E.buyRoutine(S); break;
+    case 'equip': E.buyEquip(S, k); break;
+    case 'skill': E.buySkill(S, k); break;
+    case 'pack': modal = { type: 'confirmPack', id: k }; break;
+    case 'confirmpack': E.applyPack(S, modal.id); modal = null; break;
+    case 'event': E.resolveEvent(S, i); break;
+    case 'closemodal': modal = null; break;
+    case 'reset': modal = { type: 'reset' }; break;
+    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '' }; lastMainHtml = lastTopHtml = lastTabsHtml = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
+    case 'selpack': startSel.pack = k; break;
+    case 'seltrait': startSel.trait = k; break;
+    case 'begin': {
+      const nm = (document.getElementById('chname').value || '').trim() || '나의 정보 채널';
+      S = E.newGame({ channel: nm, trait: startSel.trait, pack: startSel.pack });
+      tab = 'make'; save(); break;
+    }
+  }
+  render();
+}
+
+// ───────── 게임 루프 ─────────
+let lastT = performance.now(), saveAcc = 0, renderAcc = 0;
+function loop(now) {
+  let dt = (now - lastT) / 1000; lastT = now;
+  if (dt > 30 && S) { const o = E.offline(S, dt); if (o) modal = { type: 'offline', data: o }; dt = 0; }
+  dt = Math.min(dt, 0.25);
+  if (S && !paused && !modal) {
+    E.advance(S, dt * C.speeds[speedIdx] * E.ghPerRealSec(), dt);
+  }
+  saveAcc += dt; renderAcc += dt;
+  if (saveAcc > 5) { saveAcc = 0; save(); }
+  if (renderAcc > 0.12) { renderAcc = 0; render(); }
+  requestAnimationFrame(loop);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+window.addEventListener('beforeunload', save);
+
+// 시작
+(function boot() {
+  const saved = load();
+  if (saved && saved.v === 1) {
+    S = saved; S._toasts = [];
+    const away = (Date.now() - (saved.savedAt || Date.now())) / 1000;
+    const o = E.offline(S, away);
+    if (o) modal = { type: 'offline', data: o };
+  }
+  render();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
