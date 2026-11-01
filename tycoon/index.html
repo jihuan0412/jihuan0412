@@ -85,12 +85,12 @@
   .cta { width: 100%; padding: 9px; font-weight: 800; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.4); animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { transform: scale(1.03); } }
   .sheet { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom)); width: min(100vw, 480px); max-height: 56dvh; z-index: 7; background: #141821; border-radius: 18px 18px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.55);
-    transform: translate(-50%, calc(100% + 90px)); visibility: hidden; transition: transform .22s ease-out, visibility 0s .22s; display: flex; flex-direction: column; }
+    transform: translate(-50%, calc(100% + 90px)); visibility: hidden; overflow: hidden; transition: transform .22s ease-out, visibility 0s .22s; display: flex; flex-direction: column; }
   .sheet.open { transform: translate(-50%, 0); visibility: visible; transition: transform .22s ease-out; }
   .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 6px; border-bottom: 1px solid var(--line); }
   .sheet-head b { font-size: 16px; }
   .sheet-head .x { padding: 4px 10px; }
-  .sheet main { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 12px 14px; }
+  .sheet main { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 10px 12px 14px; }
   main { padding: 12px; }
   .card { background: var(--card); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
   .card h3 { margin: 0 0 8px; font-size: 15px; }
@@ -116,6 +116,12 @@
   .segs { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); flex-shrink: 0; }
   .segs .seg { min-width: 0; padding: 7px 10px; border-radius: 0; background: transparent; font-size: 13px; }
   .segs .seg.on { background: var(--blue); color: #001; font-weight: 800; }
+  .catrow { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .seg2 { flex-shrink: 0; padding: 6px 11px; border-radius: 99px; font-size: 13px; background: var(--card2); border: 1px solid var(--line); }
+  .seg2.on { background: var(--blue); color: #001; font-weight: 800; border-color: var(--blue); }
+  #placebar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(74px + env(safe-area-inset-bottom)); width: min(calc(100vw - 20px), 460px); z-index: 8; background: rgba(14,17,24,.94); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+  #placebar .pb-t { font-size: 13px; font-weight: 700; }
+  #placebar button { padding: 7px 11px; }
   .mood { display: inline-block; width: 46px; height: 6px; border-radius: 6px; background: #2a2f3b; overflow: hidden; vertical-align: middle; }
   .mood i { display: block; height: 100%; }
   .vid { padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -183,6 +189,10 @@
 <script src="vendor/three.min.js"></script>
 <script src="scene.js"></script>
 <script src="scene3d.js"></script>
+<script src="decor.js"></script>
+<script src="music.js"></script>
+<script src="community.js"></script>
+<script src="homeui.js"></script>
 <script>
 'use strict';
 const E = window.Engine, C = E.CONFIG, fmt = E.fmt;
@@ -193,7 +203,7 @@ let lowGfx = localStorage.getItem('ytTycoon.lowgfx') === '1';
 
 let S = null;            // 게임 상태
 let tab = null;            // 열린 아래 창 (null = 닫힘)
-const SHEET_TITLES = { team: '🤖 AI·팀', home: '🏠 집', make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
+const SHEET_TITLES = { myhome: '🏡 미니홈', team: '🤖 AI·팀', home: '🏠 집', make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
 let speedIdx = 0;
 let paused = false;
 let modal = null;        // { type, ... }
@@ -504,7 +514,7 @@ function renderStatus() {
 let lastStatusHtml = '';
 
 function renderTabs() {
-  const T = [['make', '🎬', '제작'], ['team', '🤖', 'AI·팀'], ['home', '🏠', '집'], ['invest', '🛒', '투자'], ['channel', '📊', '채널'], ['shop', '🎁', '상점'], ['log', '📜', '기록']];
+  const T = [['make', '🎬', '제작'], ['team', '🤖', 'AI·팀'], ['home', '🏠', '집·꾸미기'], ['invest', '🛒', '투자'], ['myhome', '🏡', '미니홈'], ['channel', '📊', '채널'], ['shop', '🎁', '상점']];
   const nextH = E.housesOf(S.region)[E.housesOf(S.region).indexOf(S.house) + 1];
   const dot = { make: S.uploadReady && !S.routine.on, invest: canBuySomething(), home: nextH && E.canMove(S, nextH).ok };
   return T.map(([k, ic, n]) => `<button data-a="tab" data-k="${k}" class="${tab === k ? 'on' : ''}"><span class="ic">${ic}</span>${n}${dot[k] ? '<span class="dot"></span>' : ''}</button>`).join('');
@@ -517,6 +527,7 @@ function canBuySomething() {
 // ───────── 모달 ─────────
 function renderModal() {
   if (!S) return renderStart();
+  if (window.HomeUI && HomeUI.form) return HomeUI.renderPostForm();
   if (S.ended) {
     const d = S.ended, EN = E.ENDINGS[d.type];
     return `<div class="modal-bg"><div class="modal" style="text-align:center"><div style="font-size:44px">${{ sale: '💼', mcn: '🏢', aistudio: '🧠' }[d.type]}</div>
@@ -652,8 +663,10 @@ function render() {
   document.body.classList.toggle('sheet-open', !!tab);
   if (tab) {
     document.getElementById('sheettitle').textContent = SHEET_TITLES[tab];
-    const m = { team: renderTeam, home: renderHome, make: renderMake, channel: renderChannel, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
-    if (m !== lastMainHtml) document.getElementById('main').innerHTML = lastMainHtml = m;
+    const renderChannelAll = () => renderChannel() + renderLog();
+    const m = { myhome: () => HomeUI.renderMyHome(), team: renderTeam, home: () => renderHome() + HomeUI.renderDecor(), make: renderMake, channel: renderChannelAll, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
+    const ae = document.activeElement, typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && document.getElementById('main').contains(ae);
+    if (m !== lastMainHtml && !typing) document.getElementById('main').innerHTML = lastMainHtml = m;
   }
   // 토스트
   while (S._toasts.length) {
@@ -672,10 +685,14 @@ document.addEventListener('pointerdown', e => {
   down = { x: e.clientX, y: e.clientY };
   const b = e.target.closest('[data-a="tap"]');
   if (b && !b.disabled) { doTap(e); down = null; return; }
+  if (window.HomeUI) HomeUI.firstGesture();
+  if (e.target.id === 'scene' && window.HomeUI && (HomeUI.placing || HomeUI.editing)) { HomeUI.scenePointer('down', e); return; }
   if (e.target.id === 'scene' && tab) { tab = null; down = null; render(); return; }
   if (e.target.id === 'scene' && S && S.job && !S.job.partTime) { const p = Scene.toLogical(e.clientX, e.clientY); if (E.tap(S)) Scene.tapFx(p.x, p.y); down = null; }
 });
+document.addEventListener('pointermove', e => { if (window.HomeUI && HomeUI.placing && e.target.id === 'scene' && Scene.placementPointer) Scene.placementPointer(e.clientX, e.clientY); });
 document.addEventListener('pointerup', e => {
+  if (e.target.id === 'scene' && window.HomeUI && (HomeUI.placing || HomeUI.editing) && down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 12) { down = null; HomeUI.scenePointer('up', e); render(); return; }
   if (!down) return;
   const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
   down = null;
@@ -698,7 +715,8 @@ function doTap(e) {
 function act(a, d) {
   const i = d.i !== undefined ? +d.i : null, k = d.k;
   switch (a) {
-    case 'tab': tab = tab === k ? null : k; lastMainHtml = ''; document.getElementById('main').scrollTop = 0; break;
+    case 'tab': tab = tab === k ? null : k; lastMainHtml = ''; document.getElementById('main').scrollTop = 0; if (tab && window.HomeUI) HomeUI.onTabOpen(tab); break;
+    default: if (window.HomeUI) HomeUI.act(a, d); break;
     case 'closesheet': tab = null; break;
     case 'speed': speedIdx = i; paused = false; break;
     case 'pause': paused = !paused; break;
@@ -750,6 +768,7 @@ function act(a, d) {
       const ngp = JSON.parse(localStorage.getItem(NGP_KEY) || 'null');
       S = E.newGame({ ngp, channel: nm, genre: startSel.genre || 'info', trait: startSel.trait, pack: startSel.pack, region: startSel.region, house: startSel.house });
       Scene.setPreview(null); previewState = null; document.body.classList.remove('starting');
+      if (window.HomeUI) { HomeUI._unlocked = true; HomeUI.playBgm(); }
       tab = null; save(); break;
     }
   }
@@ -768,7 +787,7 @@ function loop(now) {
   if (S) Scene.frame(S, paused || modal ? 0 : dt, C.speeds[speedIdx]);
   else if (previewState) { previewState.gh += dt * 1.2; Scene.frame(null, dt, 1); }
   saveAcc += dt; renderAcc += dt;
-  if (saveAcc > 5) { saveAcc = 0; save(); }
+  if (saveAcc > 5) { saveAcc = 0; save(); if (window.HomeUI) HomeUI.tick(); }
   if (renderAcc > 0.12) { renderAcc = 0; render(); }
   requestAnimationFrame(loop);
 }
@@ -778,6 +797,7 @@ window.addEventListener('beforeunload', save);
 // 시작
 (function boot() {
   Scene.init(document.getElementById('scene'));
+  if (window.Community) Community.init().then(() => render());
   if (lowGfx && Scene.setLowGfx) Scene.setLowGfx(true);
   const saved = load();
   if (saved && (saved.v === 1 || saved.v === 2)) {

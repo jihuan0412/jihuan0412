@@ -7,13 +7,16 @@ const engine = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
 const scene = fs.readFileSync(path.join(__dirname, 'scene.js'), 'utf8');
 const scene3d = fs.readFileSync(path.join(__dirname, 'scene3d.js'), 'utf8');
 const three = fs.readFileSync(path.join(__dirname, 'vendor', 'three.min.js'), 'utf8');
+const extra = ['decor.js', 'music.js', 'community.js', 'homeui.js'];
 const out = html
   .replace('<script src="engine.js"></script>', () => '<script>\n' + engine + '\n</script>')
   .replace('<script src="vendor/three.min.js"></script>', () => '<script>\n' + three + '\n</script>')
   .replace('<script src="scene.js"></script>', () => '<script>\n' + scene + '\n</script>')
   .replace('<script src="scene3d.js"></script>', () => '<script>\n' + scene3d + '\n</script>')
   .replace(', viewport-fit=cover', '');
-if (/<script src=/.test(out)) throw new Error('engine.js 합치기 실패');
+let out2 = out;
+for (const f of extra) { const p = path.join(__dirname, f); out2 = out2.replace(`<script src="${f}"></script>`, () => fs.existsSync(p) ? '<script>\n' + fs.readFileSync(p, 'utf8') + '\n</script>' : ''); }
+if (/<script src=/.test(out2)) throw new Error('engine.js 합치기 실패');
 fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
-fs.writeFileSync(path.join(__dirname, 'dist', 'tycoon.html'), out);
-console.log('dist/tycoon.html', out.length, 'bytes');
+fs.writeFileSync(path.join(__dirname, 'dist', 'tycoon.html'), out2);
+console.log('dist/tycoon.html', out2.length, 'bytes');
