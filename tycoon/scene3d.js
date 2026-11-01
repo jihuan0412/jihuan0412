@@ -690,6 +690,8 @@
     if (anim.lighthouse) anim.lighthouse.material.emissiveIntensity = night ? 2.5 + Math.sin(t * 3) : 0.3;
     if (anim.campfire) { anim.campfire.scale.setScalar(0.85 + Math.sin(t * 9) * 0.15); anim.campLight.intensity = night ? 1.4 + Math.sin(t * 11) * 0.3 : 0; }
     if (anim.fire) anim.fire.scale.setScalar(0.85 + Math.sin(t * 9) * 0.15);
+    // 방 꾸미기 (놓인 아이템 + 벽지·바닥재 + 배치 모드)
+    updateDecor(S);
     // 계절
     const sea = root.Engine.season(S.gh);
     if (anim.groundMat && S.region !== 'seaside') {
@@ -846,8 +848,244 @@
     });
   }
 
+  // ───────── 방 꾸미기 ─────────
+  // 놓인 아이템은 decor.js(DECOR3D)가 모양을 만들고, 여기서는 위치·벽지·바닥재·배치 모드(유령 미리보기)를 맡는다.
+  let decorG = null, decorSig = '', decorTicks = [], lastS = null, themeBase = null;
+  const place = { opts: null, ghost: null, ghostId: '', tintMats: [], plate: null, grid: null, gridKey: '', raw: null, pos: null, valid: false, ray: null, ndc: null };
+  const wallH = () => RW >= 10 ? 3.4 : 3;
+  const decorItems = () => root.Engine.DECOR_ITEMS;
+  function disposeDeep(o) {
+    o.traverse(m => {
+      if (m.geometry) m.geometry.dispose();
+      if (m.material) (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => x.dispose());
+    });
+    if (o.parent) o.parent.remove(o);
+  }
+  function placeObj(o, D, p) {
+    if (D.place === 'wall') {
+      if (p.wall === 'left') { o.position.set(-RW / 2 + 0.02, p.y, p.z); o.rotation.y = Math.PI / 2; }
+      else { o.position.set(p.x, p.y, -RD / 2 + 0.02); o.rotation.y = 0; }
+    } else { o.position.set(p.x, 0, p.z); o.rotation.y = (p.rot || 0) * Math.PI / 2; }
+  }
+  function buildDecor(S) {
+    if (decorG) disposeDeep(decorG);
+    decorG = new T.Group(); decorG.name = 'decor'; scene.add(decorG); decorTicks = [];
+    const D3 = root.DECOR3D, items = decorItems();
+    const list = (S.decor && S.decor.placed && S.decor.placed[S.house]) || [];
+    if (D3) list.forEach((p, i) => {
+      const D = items[p.id]; if (!D || D.place === 'theme') return;
+      const o = D3.build(p.id, T);
+      o.userData.decorIdx = i;
+      o.traverse(m => { if (m.isMesh) m.userData.decorIdx = i; });
+      placeObj(o, D, p);
+      if (place.opts && place.opts.ignoreIdx === i) o.visible = false;
+      decorG.add(o);
+      if (o.userData.tick) decorTicks.push(o.userData.tick);
+    });
+    applyTheme(S);
+  }
+  // ── 벽지·바닥재: 흰 바탕 무늬에 색을 입힌다 (벽돌만 색 있는 무늬)
+  const THEME_TEX = {
+    wp_pastel: g => { g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(255,255,255,.9)'; g.fillStyle = 'rgba(120,90,110,.10)'; for (let y = 0; y < 256; y += 32) for (let x = (y / 32) % 2 * 16; x < 256; x += 32) { g.beginPath(); g.arc(x + 8, y + 8, 4, 0, 7); g.fill(); } },
+    wp_mint: g => { g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256); for (let x = 0; x < 256; x += 32) { g.fillStyle = 'rgba(60,110,90,.10)'; g.fillRect(x, 0, 12, 256); g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(x + 14, 0, 2, 256); } },
+    wp_navy: g => { g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(255,230,160,.55)'; for (let i = 0; i < 40; i++) { const x = rnd(i + 50) * 256, y = rnd(i + 90) * 256, r = 1 + rnd(i) * 1.6; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } g.strokeStyle = 'rgba(0,0,0,.08)'; for (let y = 0; y < 256; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(256, y); g.stroke(); } },
+    wp_brick: g => { g.fillStyle = '#e9ddd0'; g.fillRect(0, 0, 256, 256); const rows = 12, bh = 256 / rows; for (let r = 0; r < rows; r++) { const off = r % 2 ? 0 : 21; for (let x = -42 + off; x < 256; x += 42) { const l = 40 + rnd(r * 31 + x) * 12, hh = 8 + rnd(r * 7 + x * 3) * 6; g.fillStyle = `hsl(${hh},${42 + rnd(x + r) * 12}%,${l}%)`; g.fillRect(x + 2, r * bh + 2, 38, bh - 4); g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(x + 2, r * bh + bh - 5, 38, 3); } } },
+    fl_wood: g => { const rows = 8, ph = 512 / rows; for (let r = 0; r < rows; r++) { let x = -((r * 97) % 200); while (x < 512) { const len = 160 + ((r * 31 + x) % 120), l = 86 + rnd(r * 7 + x) * 12; g.fillStyle = `hsl(30,8%,${l}%)`; g.fillRect(x, r * ph, len, ph); g.strokeStyle = 'rgba(40,30,20,.28)'; g.lineWidth = 2; g.strokeRect(x + 1, r * ph + 1, len - 2, ph - 2); for (let k = 0; k < 3; k++) { g.strokeStyle = 'rgba(60,45,30,.10)'; g.beginPath(); const yy = r * ph + 12 + k * 16; g.moveTo(x, yy); g.bezierCurveTo(x + len * .3, yy - 4, x + len * .6, yy + 4, x + len, yy); g.stroke(); } x += len; } } },
+    fl_carpet: g => { g.fillStyle = '#f4f4f4'; g.fillRect(0, 0, 512, 512); for (let i = 0; i < 9000; i++) { const v = rnd(i) > 0.5 ? 255 : 120; g.fillStyle = `rgba(${v},${v},${v},${0.06 + rnd(i + 7) * 0.08})`; g.fillRect(rnd(i + 1) * 512, rnd(i + 2) * 512, 2, 2); } g.strokeStyle = 'rgba(0,0,0,.05)'; g.lineWidth = 3; for (let i = 0; i <= 2; i++) { g.beginPath(); g.moveTo(i * 256, 0); g.lineTo(i * 256, 512); g.moveTo(0, i * 256); g.lineTo(512, i * 256); g.stroke(); } },
+  };
+  function applyTheme(S) {
+    if (!wallMat || !floorMat) return;
+    if (!themeBase || themeBase.wallMat !== wallMat || themeBase.floorMat !== floorMat) themeBase = { wallMat, floorMat, wc: wallMat.color.clone(), wm: wallMat.map, fc: floorMat.color.clone(), fm: floorMat.map };
+    const items = decorItems(), th = (S.decor && S.decor.theme && S.decor.theme[S.house]) || {};
+    const w = items[th.wall], f = items[th.floor];
+    if (w && w.color && THEME_TEX[th.wall]) {
+      wallMat.map = canvasTex('th_' + th.wall, 256, 256, THEME_TEX[th.wall], [3, 1]);
+      wallMat.color.set(th.wall === 'wp_brick' ? '#ffffff' : w.color);
+    } else { wallMat.map = themeBase.wm; wallMat.color.copy(themeBase.wc); }
+    if (f && f.color) {
+      const kind = th.floor === 'fl_carpet' ? 'fl_carpet' : 'fl_wood';
+      floorMat.map = canvasTex('th_' + kind + RW + 'x' + RD, 512, 512, THEME_TEX[kind], [RW / 4, RD / 4]);
+      floorMat.color.set(f.color);
+      floorMat.roughness = kind === 'fl_carpet' ? 1 : 0.7;
+    } else { floorMat.map = themeBase.fm; floorMat.color.copy(themeBase.fc); floorMat.roughness = 0.7; }
+    wallMat.needsUpdate = true; floorMat.needsUpdate = true;
+  }
+  function updateDecor(S) {
+    lastS = S;
+    const dc = S.decor;
+    const dsig = worldSig + '|' + (dc ? JSON.stringify(dc.placed && dc.placed[S.house]) + JSON.stringify(dc.theme && dc.theme[S.house]) : '') + '|' + !!root.DECOR3D;
+    if (dsig !== decorSig) { decorSig = dsig; buildDecor(S); if (place.opts) refreshPlacement(); }
+    const env = { night: light.lamp };
+    for (const f of decorTicks) f(t, env);
+    if (place.opts) {
+      const key = S.house + '|' + RW + 'x' + RD + '|' + (decorItems()[place.opts.id] || {}).place;
+      if (key !== place.gridKey) buildGrid(S, key);
+      if (place.ghost) { const k = 0.42 + 0.14 * Math.sin(t * 6); place.tintMats.forEach(m => { m.emissiveIntensity = k; }); }
+    }
+  }
+
+  // ── 배치 모드
+  function buildGrid(S, key) {
+    if (place.grid) { disposeDeep(place.grid); place.grid = null; }
+    place.gridKey = key;
+    const D = decorItems()[place.opts.id]; if (!D) return;
+    const G = new T.Group(); G.name = 'placeGrid'; scene.add(G); place.grid = G;
+    const hx = RW / 2, hz = RD / 2, c = root.Engine.DECOR_CELL, pts = [];
+    const lineM = new T.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false });
+    if (D.place === 'wall') {
+      const y0 = 0.9, y1 = 2.6;
+      const bm = new T.MeshBasicMaterial({ color: '#7ee0ff', transparent: true, opacity: 0.12, depthWrite: false });
+      const b = new T.Mesh(new T.PlaneGeometry(2 * (hx - 0.4), y1 - y0), bm); b.position.set(0, (y0 + y1) / 2, -hz + 0.012); G.add(b);
+      const l = new T.Mesh(new T.PlaneGeometry(2 * (hz - 0.4), y1 - y0), bm); l.position.set(-hx + 0.012, (y0 + y1) / 2, 0); l.rotation.y = Math.PI / 2; G.add(l);
+      for (let x = -hx + 0.4; x <= hx - 0.4 + 1e-6; x += 0.5) pts.push(x, y0, -hz + 0.014, x, y1, -hz + 0.014);
+      for (let y = y0; y <= y1 + 1e-6; y += 0.5) pts.push(-hx + 0.4, y, -hz + 0.014, hx - 0.4, y, -hz + 0.014);
+      for (let z = -hz + 0.4; z <= hz - 0.4 + 1e-6; z += 0.5) pts.push(-hx + 0.014, y0, z, -hx + 0.014, y1, z);
+      for (let y = y0; y <= y1 + 1e-6; y += 0.5) pts.push(-hx + 0.014, y, -hz + 0.4, -hx + 0.014, y, hz - 0.4);
+    } else {
+      for (let x = -hx; x <= hx + 1e-6; x += c) pts.push(x, 0.006, -hz, x, 0.006, hz);
+      for (let z = -hz; z <= hz + 1e-6; z += c) pts.push(-hx, 0.006, z, hx, 0.006, z);
+      // 고정 가구 자리(못 놓는 곳)는 옅은 빨강
+      const bm = new T.MeshBasicMaterial({ color: '#ff5a5a', transparent: true, opacity: 0.24, depthWrite: false });
+      if (!D.flat) root.Engine.roomLayout(S.house).blocked.forEach(r => {
+        const x0 = Math.max(-hx, r[0]), x1 = Math.min(hx, r[2]), z0 = Math.max(-hz, r[1]), z1 = Math.min(hz, r[3]);
+        if (x1 <= x0 || z1 <= z0) return;
+        const m = new T.Mesh(new T.PlaneGeometry(x1 - x0, z1 - z0), bm); m.rotation.x = -Math.PI / 2; m.position.set((x0 + x1) / 2, 0.005, (z0 + z1) / 2); G.add(m);
+      });
+    }
+    const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pts, 3));
+    const ls = new T.LineSegments(geo, lineM); ls.renderOrder = 3; G.add(ls);
+  }
+  function makeGhost(id) {
+    const D = decorItems()[id];
+    place.tintMats = []; place.ghostId = id;
+    if (!root.DECOR3D || !D) { place.ghost = null; return; }
+    const o = root.DECOR3D.build(id, T);
+    o.traverse(m => {
+      if (!m.isMesh) return;
+      m.castShadow = false; m.receiveShadow = false;
+      const conv = x => {
+        const c = x.clone();
+        c.transparent = true; c.opacity = Math.min(x.opacity == null ? 1 : x.opacity, 0.72);
+        if (c.emissive) { c.emissive = new T.Color('#3dff8a'); c.emissiveIntensity = 0.45; c.emissiveMap = null; place.tintMats.push(c); }
+        return c;
+      };
+      m.material = Array.isArray(m.material) ? m.material.map(conv) : conv(m.material);
+    });
+    // 바닥: 차지하는 칸 / 벽: 붙는 자리
+    const c = root.Engine.DECOR_CELL;
+    const pm = new T.MeshBasicMaterial({ color: '#3dff8a', transparent: true, opacity: 0.35, depthWrite: false });
+    const plate = D.place === 'wall' ? new T.Mesh(new T.PlaneGeometry(0.66, 0.56), pm) : new T.Mesh(new T.PlaneGeometry(D.w * c - 0.02, D.d * c - 0.02), pm);
+    if (D.place === 'wall') plate.position.z = 0.006; else { plate.rotation.x = -Math.PI / 2; plate.position.y = 0.012; }
+    plate.renderOrder = 4; o.add(plate); place.plate = pm;
+    o.userData.tick = null;
+    scene.add(o); place.ghost = o;
+  }
+  function setPlacement(opts) {
+    if (fallback || !renderer) return;
+    if (!place.ray) { place.ray = new T.Raycaster(); place.ndc = new T.Vector2(); }
+    place.opts = opts && decorItems()[opts.id] && decorItems()[opts.id].place !== 'theme' ? Object.assign({ rot: 0 }, opts) : null;
+    if (place.ghost && (!place.opts || place.opts.id !== place.ghostId)) { disposeDeep(place.ghost); place.ghost = null; place.ghostId = ''; }
+    if (decorG) decorG.children.forEach(o => { o.visible = !(place.opts && place.opts.ignoreIdx === o.userData.decorIdx); });
+    if (!place.opts) {
+      if (place.grid) { disposeDeep(place.grid); place.grid = null; place.gridKey = ''; }
+      place.pos = null; place.valid = false; place.raw = null;
+      return;
+    }
+    const D = decorItems()[place.opts.id];
+    if (place.raw && place.raw.kind !== D.place) place.raw = null;
+    if (!place.ghost) makeGhost(place.opts.id);
+    if (lastS) { const key = lastS.house + '|' + RW + 'x' + RD + '|' + D.place; if (key !== place.gridKey) buildGrid(lastS, key); }
+    if (!place.raw) {
+      // 처음 위치: 옮기는 중이면 원래 자리, 아니면 방 가운데(바닥)·뒷벽 가운데(벽)
+      const list = lastS && lastS.decor && lastS.decor.placed[lastS.house] || [], cur = place.opts.ignoreIdx != null ? list[place.opts.ignoreIdx] : null;
+      if (cur && D.place === 'wall') place.raw = { kind: 'wall', wall: cur.wall, v: cur.wall === 'left' ? cur.z : cur.x, y: cur.y };
+      else if (cur) place.raw = { kind: 'floor', x: cur.x, z: cur.z };
+      else place.raw = D.place === 'wall' ? { kind: 'wall', wall: 'back', v: 0, y: 1.6 } : { kind: 'floor', x: 0, z: 0.5 };
+    }
+    refreshPlacement();
+  }
+  function refreshPlacement() {
+    if (!place.opts || !place.raw || !lastS) return;
+    const S = lastS, id = place.opts.id, D = decorItems()[id], hx = RW / 2, hz = RD / 2, c = root.Engine.DECOR_CELL;
+    const ok = p => root.Engine.canPlace(S, id, p, place.opts.ignoreIdx);
+    let pos;
+    if (D.place === 'wall') {
+      const r = place.raw, span = r.wall === 'left' ? hz : hx;
+      const v = Math.max(-(span - 0.4), Math.min(span - 0.4, Math.round(r.v / 0.25) * 0.25));
+      const y = Math.max(1.0, Math.min(2.5, Math.round(r.y / 0.25) * 0.25));
+      pos = r.wall === 'left' ? { wall: 'left', z: v, y } : { wall: 'back', x: v, y };
+      place.valid = ok(pos) && !wallBlocked(pos);
+    } else {
+      const rot = ((place.opts.rot || 0) % 4 + 4) % 4, w = (rot % 2 ? D.d : D.w) * c, d = (rot % 2 ? D.w : D.d) * c;
+      const snap = (v, s, h) => Math.max(-h + s / 2, Math.min(h - s / 2, Math.round((v - s / 2) / c) * c + s / 2));
+      let x = snap(place.raw.x, w, hx), z = snap(place.raw.z, d, hz);
+      pos = { x: +x.toFixed(3), z: +z.toFixed(3), rot };
+      place.valid = ok(pos);
+      if (!place.valid) {
+        // 벽에 딱 붙은 칸은 엔진 여유(5cm)만큼 안쪽으로 밀어서 다시 본다
+        const e = 0.05;
+        if (x - w / 2 < -hx + e) x = -hx + e + w / 2; if (x + w / 2 > hx - e) x = hx - e - w / 2;
+        if (z - d / 2 < -hz + e) z = -hz + e + d / 2; if (z + d / 2 > hz - e) z = hz - e - d / 2;
+        const p2 = { x: +x.toFixed(3), z: +z.toFixed(3), rot };
+        if ((p2.x !== pos.x || p2.z !== pos.z) && ok(p2)) { pos = p2; place.valid = true; }
+      }
+    }
+    place.pos = pos;
+    if (place.ghost) {
+      placeObj(place.ghost, D, pos);
+      if (D.place === 'wall') place.ghost.position[pos.wall === 'left' ? 'x' : 'z'] += 0.01;
+      const col = place.valid ? '#3dff8a' : '#ff4a4a';
+      place.tintMats.forEach(m => m.emissive.set(col));
+      if (place.plate) place.plate.color.set(col);
+    }
+  }
+  // 창문·문과 겹치는 벽 자리는 장면 쪽에서 막는다
+  function wallBlocked(p) {
+    if (lastS && root.Engine.HOUSES[lastS.house].wall === 'glass') return false;
+    if (p.wall === 'back') { const W = L.win; return Math.abs(p.x - W.x) < W.w / 2 + 0.3 && p.y > 1.0 - 0.25 && p.y < 2.4 + 0.25; }
+    return Math.abs(p.z - L.door.z) < 0.5 + 0.3 && p.y - 0.3 < 2.15;
+  }
+  function pointerRay(cx, cy) {
+    const r = cv.getBoundingClientRect();
+    place.ndc.set((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+    place.ray.setFromCamera(place.ndc, camera);
+    return place.ray.ray;
+  }
+  function placementPointer(cx, cy) {
+    if (fallback || !renderer || !place.opts) return null;
+    const ray = pointerRay(cx, cy), D = decorItems()[place.opts.id], hx = RW / 2, hz = RD / 2, WH = wallH();
+    const v = new T.Vector3();
+    if (D.place === 'wall') {
+      let best = null;
+      if (ray.intersectPlane(new T.Plane(new T.Vector3(0, 0, 1), hz), v) && Math.abs(v.x) <= hx && v.y >= 0 && v.y <= WH + 0.5) best = { d: v.distanceTo(ray.origin), wall: 'back', v: v.x, y: v.y };
+      if (ray.intersectPlane(new T.Plane(new T.Vector3(1, 0, 0), hx), v) && Math.abs(v.z) <= hz && v.y >= 0 && v.y <= WH + 0.5) { const d = v.distanceTo(ray.origin); if (!best || d < best.d) best = { d, wall: 'left', v: v.z, y: v.y }; }
+      if (!best && ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), 0), v)) {
+        const y = place.raw && place.raw.y || 1.6;
+        best = (v.z + hz) < (v.x + hx) ? { wall: 'back', v: v.x, y } : { wall: 'left', v: v.z, y };
+      }
+      if (best) place.raw = { kind: 'wall', wall: best.wall, v: best.v, y: best.y };
+    } else if (ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), 0), v)) place.raw = { kind: 'floor', x: v.x, z: v.z };
+    refreshPlacement();
+    return { pos: place.pos, valid: place.valid };
+  }
+  function placementConfirm() {
+    if (fallback || !place.opts || !place.pos || !place.valid) return false;
+    const pos = Object.assign({}, place.pos), cb = place.opts.onPick;
+    if (cb) cb(pos);
+    return true;
+  }
+  function pickDecorAt(cx, cy) {
+    if (fallback || !renderer || !decorG || !decorG.children.length) return -1;
+    if (!place.ray) { place.ray = new T.Raycaster(); place.ndc = new T.Vector2(); }
+    pointerRay(cx, cy);
+    const hits = place.ray.intersectObjects(decorG.children.filter(o => o.visible), true);
+    for (const h of hits) if (h.object.userData.decorIdx != null && h.object.material && !(h.object.material.blending === T.AdditiveBlending)) return h.object.userData.decorIdx;
+    return -1;
+  }
+
   function tapFx(x, y) { if (fallback) return fallback.tapFx(x, y); floatText('+작업!', x + (Math.random() - 0.5) * 40, y, 'tap'); }
   function toLogical(cx, cy) { if (fallback) return fallback.toLogical(cx, cy); return { x: cx, y: cy }; }
 
-  root.Scene = { init, frame, tapFx, toLogical, resize, setInset, setDock, setPreview, setLowGfx, is3D: () => !fallback };
+  root.Scene = { init, frame, tapFx, toLogical, resize, setInset, setDock, setPreview, setLowGfx, is3D: () => !fallback,
+    setPlacement, placementPointer, placementConfirm, pickDecorAt };
 })(window);
