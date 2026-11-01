@@ -21,7 +21,9 @@
 
   // ───────── 음악 ─────────
   function moodList() {
-    const M = MU(); if (!M || !M.MOODS) return [];
+    const M = MU(); if (!M) return [];
+    if (M.moods) return M.moods().map(x => ({ id: x.id, name: x.name }));
+    if (!M.MOODS) return [];
     const m = M.MOODS;
     return Array.isArray(m) ? m.map(x => ({ id: x.id || x.key, name: x.name || x.label || x.id })) : Object.keys(m).map(k => ({ id: k, name: (m[k] && (m[k].name || m[k].label)) || k }));
   }
