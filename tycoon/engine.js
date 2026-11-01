@@ -228,8 +228,9 @@
     const region = REGIONS[opt.region] ? opt.region : 'city';
     const house = (HOUSES[opt.house] && HOUSES[opt.house].region === region) ? opt.house : housesOf(region)[0];
     const s = {
-      v: 2, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
-      gh: 0, money: REGIONS[region].startMoney - (HOUSES[house].unlock ? 0 : 0), stamina: CONFIG.maxStaminaBase,
+      v: 2, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
+      // 한 단계 위 집에서 시작하면 그 이사비만큼 덜 가지고 시작
+      gh: 0, money: REGIONS[region].startMoney - HOUSES[house].move, stamina: CONFIG.maxStaminaBase,
       subs: 0, totalViews: 0, watchHours: 0, favor: CONFIG.favor.start, monetized: false,
       totalIncome: 0,
       equip: Object.fromEntries(Object.keys(EQUIP).map(k => [k, 0])),

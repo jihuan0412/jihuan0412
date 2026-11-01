@@ -34,7 +34,38 @@
   .bar.big { height: 12px; }
   body.playing { overflow: hidden; height: 100dvh; padding: 0; }
   #scene { display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); height: 100dvh; image-rendering: pixelated; background: transparent; touch-action: manipulation; cursor: pointer; }
-  body.playing #scene { display: block; }
+  body.playing #scene, body.starting #scene { display: block; }
+  .startwrap { position: fixed; inset: 0; z-index: 20; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+  .logo { pointer-events: none; text-align: center; padding: calc(28px + env(safe-area-inset-top)) 16px 0; }
+  .logo .t1 { font-size: 15px; font-weight: 800; letter-spacing: 4px; color: #ffe066; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  .logo .t2 { font-size: 34px; font-weight: 900; line-height: 1.1; color: #fff; text-shadow: 0 3px 0 #e5484d, 0 6px 18px rgba(0,0,0,.55); margin-top: 4px; }
+  .logo .t3 { font-size: 13px; color: #fff; opacity: .9; margin-top: 8px; text-shadow: 0 1px 4px #000; }
+  .spanel { pointer-events: auto; background: rgba(16,19,27,.94); backdrop-filter: blur(8px); border-radius: 22px 22px 0 0; padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); max-height: 58dvh; overflow-y: auto; box-shadow: 0 -10px 30px rgba(0,0,0,.5); width: min(100vw, 480px); margin: 0 auto; animation: sup .35s ease-out; }
+  @keyframes sup { from { transform: translateY(40px); opacity: 0; } }
+  .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; }
+  .steps i { width: 26px; height: 5px; border-radius: 9px; background: #343a4a; }
+  .steps i.on { background: #ff5a5a; }
+  .sp-title { font-size: 18px; font-weight: 800; margin: 2px 0 10px; }
+  .rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .rcard { text-align: left; padding: 12px; border-radius: 14px; background: #1f2431; border: 2px solid transparent; }
+  .rcard.sel { border-color: #ff5a5a; background: #2a2230; }
+  .rcard .ic { font-size: 28px; }
+  .rcard b { display: block; font-size: 16px; margin: 2px 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chip { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: #2c3242; color: #cfd5e2; }
+  .navrow { display: flex; gap: 8px; margin-top: 12px; }
+  .navrow button { flex: 1; padding: 13px; font-weight: 800; }
+  .bigstart { width: 100%; padding: 16px; font-size: 18px; font-weight: 900; border-radius: 16px; background: linear-gradient(180deg,#ff6a6a,#e23a3a); color: #fff; box-shadow: 0 6px 18px rgba(226,58,58,.45); animation: pulse 1.6s ease-in-out infinite; }
+  .movefx { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(10,12,20,.82); animation: mfin .3s ease-out; pointer-events: none; }
+  .movefx.out { animation: mfout .5s ease-in forwards; }
+  @keyframes mfin { from { opacity: 0; } } @keyframes mfout { to { opacity: 0; } }
+  .movefx .box { width: min(92vw, 420px); text-align: center; color: #fff; }
+  .movefx .road { position: relative; height: 70px; margin: 16px 0; border-radius: 12px; background: linear-gradient(180deg,#3b3f4a 0 45%,#2e323b 45%); overflow: hidden; }
+  .movefx .road:after { content: ""; position: absolute; left: 0; right: 0; top: 52px; height: 3px; background: repeating-linear-gradient(90deg,#f2d14a 0 22px,transparent 22px 40px); }
+  .movefx .truck { position: absolute; top: 4px; font-size: 44px; transform: scaleX(-1); animation: drive 2.4s ease-in-out forwards; }
+  @keyframes drive { from { left: -60px; } to { left: calc(100% + 10px); } }
+  .movefx .pl { display: flex; justify-content: space-between; font-weight: 800; }
+  .movefx .pl span { font-size: 13px; opacity: .85; }
   body.playing { background: radial-gradient(120% 70% at 50% 55%, #2a3350 0%, #151a2a 55%, #0b0d14 100%); }
   .hud { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: min(100vw, 480px); padding: calc(8px + env(safe-area-inset-top)) 10px 10px; z-index: 5; pointer-events: none;
     background: linear-gradient(180deg, rgba(8,10,16,.82) 0%, rgba(8,10,16,.55) 70%, rgba(8,10,16,0) 100%); }
@@ -160,7 +191,7 @@ let speedIdx = 0;
 let paused = false;
 let modal = null;        // { type, ... }
 let lastMainHtml = '', lastTopHtml = '', lastTabsHtml = '', lastModalHtml = '';
-let startSel = { trait: 'planner', pack: 'free', channel: '' };
+let startSel = { trait: 'planner', pack: 'free', channel: '', step: 0, region: 'city', house: 'gosiwon' };
 
 // ───────── 저장 ─────────
 function save() {
@@ -422,21 +453,80 @@ function renderModal() {
   }
   return '';
 }
-function renderStart() {
-  const sets = E.START_SETS.map(id => {
-    if (id === 'free') return `<button class="opt ${startSel.pack === 'free' ? 'sel' : ''}" data-a="selpack" data-k="free"><b>무료로 시작</b><div class="mute small">스마트폰 · 내장 마이크 · 노트북 · 시작 자금 ${won(C.startMoney)}</div></button>`;
-    const p = E.PACKS[id];
-    return `<button class="opt ${startSel.pack === id ? 'sel' : ''}" data-a="selpack" data-k="${id}"><div class="row between"><b>${p.name}</b><span class="price">₩${p.price.toLocaleString('ko-KR')}</span></div><div class="mute small">${p.desc} (게임머니 ${won(packValue(p))} 상당)</div></button>`;
-  }).join('');
-  const traits = Object.entries(E.TRAITS).map(([k, t]) => `<button class="opt ${startSel.trait === k ? 'sel' : ''}" data-a="seltrait" data-k="${k}"><b>${t.name}</b><div class="mute small">${t.desc}</div></button>`).join('');
-  return `<div class="modal-bg"><div class="modal"><h2>📺 유튜브 채널 운영 타이쿤</h2>
-    <div class="mute small">정보·교육 채널 하나로 시작합니다. 1단계 목표: 60분 안에 구독자 1만 명.</div>
-    <h3 style="margin:14px 0 6px;font-size:14px">채널 이름</h3><input type="text" id="chname" maxlength="20" placeholder="나의 정보 채널" value="${esc(startSel.channel)}">
-    <h3 style="margin:14px 0 6px;font-size:14px">나의 특성</h3>${traits}
-    <h3 style="margin:14px 0 6px;font-size:14px">시작 세트</h3>${sets}
-    <div class="mock">유료 세트는 모의 결제입니다. 실제로 돈이 나가지 않습니다.</div>
-    <button class="primary" style="width:100%;padding:14px" data-a="begin">채널 개설하기</button></div></div>`;
+let previewState = null;
+function startPreview() {
+  const r = startSel.region || 'city', hs = E.housesOf(r);
+  const house = startSel.house && E.HOUSES[startSel.house].region === r ? startSel.house : hs[0];
+  if (!previewState || previewState.region !== r || previewState.house !== house || previewState._pack !== startSel.pack) {
+    const gh = previewState ? previewState.gh : 24 + 9;
+    previewState = E.newGame({ region: r, house, channel: startSel.channel || '나의 채널' });
+    previewState.gh = gh; previewState._pack = startSel.pack;
+    if (startSel.pack && startSel.pack !== 'free') E.applyPack(previewState, startSel.pack);
+  }
+  return previewState;
 }
+function renderStart() {
+  const st = startSel.step || 0;
+  const dots = `<div class="steps">${[0, 1, 2, 3, 4].map(i => `<i class="${i <= st ? 'on' : ''}"></i>`).join('')}</div>`;
+  const logo = `<div class="logo"><div class="t1">YOUTUBE CHANNEL</div><div class="t2">유튜브 채널<br>운영 타이쿤</div><div class="t3">작은 방 한 칸에서 시작해 MCN 회사까지</div></div>`;
+  let p = '';
+  if (st === 0) {
+    p = `<div class="mute small" style="text-align:center;margin-bottom:12px">어디서, 어떤 집에서, 어떤 크리에이터로 시작할지 고르세요.<br>지역마다 집값·주제·사건이 다릅니다.</div>
+      <button class="bigstart" data-a="sstep" data-i="1">▶ 시작하기</button>`;
+  } else if (st === 1) {
+    const cards = Object.entries(E.REGIONS).map(([k, r]) => {
+      const first = E.HOUSES[E.housesOf(k)[0]];
+      return `<button class="rcard ${startSel.region === k ? 'sel' : ''}" data-a="sregion" data-k="${k}"><span class="ic">${r.icon}</span><b>${r.name}</b>
+        <div class="mute small">${r.desc}</div><div class="chips"><span class="chip">시작 ${won(r.startMoney)}</span><span class="chip">첫 집 ${first.name}</span><span class="chip">월세 ${first.rent ? won(first.rent) : '없음'}</span></div></button>`;
+    }).join('');
+    p = `<div class="sp-title">어디서 시작할까요?</div><div class="rgrid">${cards}</div>
+      <div class="navrow"><button data-a="sstep" data-i="0">이전</button><button class="primary" data-a="sstep" data-i="2">다음</button></div>`;
+  } else if (st === 2) {
+    const r = E.REGIONS[startSel.region], hs = E.housesOf(startSel.region).slice(0, 2);
+    const cards = hs.map((id, i) => {
+      const H = E.HOUSES[id], f = H.furnished || {};
+      const furn = Object.keys(f).map(k => itemName(k, f[k])).join(', ') || '가구 없음';
+      return `<button class="opt ${startSel.house === id ? 'sel' : ''}" data-a="shouse" data-k="${id}"><div class="row between"><b>${i ? '🏡' : '🛏️'} ${H.name}</b><span class="price">${i ? '시작 자금 -' + won(H.move) : '가장 싸게'}</span></div>
+        <div class="mute small">${H.desc}</div><div class="chips"><span class="chip">월세 ${H.rent ? won(H.rent) : '없음'}</span><span class="chip">방 ${H.size[0]}×${H.size[1]}</span><span class="chip">${furn}</span>${H.q ? `<span class="chip">품질 ${H.q > 0 ? '+' : ''}${H.q}</span>` : ''}${H.regen ? `<span class="chip">휴식 +${H.regen}</span>` : ''}</div></button>`;
+    }).join('');
+    p = `<div class="sp-title">${r.icon} ${r.name}, 어떤 집에서?</div>${cards}
+      <div class="mute small">더 좋은 집은 이사비만큼 시작 자금이 줄고 월세가 붙습니다.</div>
+      <div class="navrow"><button data-a="sstep" data-i="1">이전</button><button class="primary" data-a="sstep" data-i="3">다음</button></div>`;
+  } else if (st === 3) {
+    const traits = Object.entries(E.TRAITS).map(([k, t]) => `<button class="opt ${startSel.trait === k ? 'sel' : ''}" data-a="seltrait" data-k="${k}"><b>${t.name}</b><div class="mute small">${t.desc}</div></button>`).join('');
+    p = `<div class="sp-title">어떤 크리에이터인가요?</div>
+      <input type="text" id="chname" maxlength="20" placeholder="채널 이름 (예: 찌야의 생활정보)" value="${esc(startSel.channel)}" style="margin-bottom:10px">${traits}
+      <div class="navrow"><button data-a="sstep" data-i="2">이전</button><button class="primary" data-a="sstep" data-i="4">다음</button></div>`;
+  } else {
+    const sets = E.START_SETS.map(id => {
+      if (id === 'free') return `<button class="opt ${startSel.pack === 'free' ? 'sel' : ''}" data-a="selpack" data-k="free"><b>그대로 시작</b><div class="mute small">가진 것 없이, 내 힘으로</div></button>`;
+      const pk = E.PACKS[id];
+      return `<button class="opt ${startSel.pack === id ? 'sel' : ''}" data-a="selpack" data-k="${id}"><div class="row between"><b>${pk.name}</b><span class="price">₩${pk.price.toLocaleString('ko-KR')}</span></div><div class="mute small">${pk.desc} (게임머니 ${won(packValue(pk))} 상당)</div></button>`;
+    }).join('');
+    const r = E.REGIONS[startSel.region], H = E.HOUSES[startSel.house];
+    p = `<div class="sp-title">시작 세트</div>${sets}<div class="mock">유료 세트는 모의 결제입니다. 실제로 돈이 나가지 않습니다.</div>
+      <div class="mute small" style="margin-bottom:8px">${r.icon} ${r.name} · ${H.name} · ${E.TRAITS[startSel.trait].name} · 시작 자금 ${won(r.startMoney - H.move)}</div>
+      <button class="bigstart" data-a="begin">📺 채널 개설하기</button>
+      <div class="navrow"><button data-a="sstep" data-i="3">이전</button></div>`;
+  }
+  return `<div class="startwrap">${logo}<div class="spanel">${dots}${p}</div></div>`;
+}
+
+// 이사 연출
+window.MoveFx = {
+  play(S) {
+    const m = S.moving; if (!m) return;
+    const F = E.HOUSES[m.from], To = E.HOUSES[m.to];
+    const el = document.createElement('div'); el.className = 'movefx';
+    el.innerHTML = `<div class="box"><div style="font-size:22px;font-weight:900">🚚 이사 갑니다!</div>
+      <div class="road"><div class="truck">🚚</div></div>
+      <div class="pl"><div>${E.REGIONS[F.region].icon} ${F.name}<br><span>${E.REGIONS[F.region].name}</span></div><div style="font-size:22px">➜</div><div>${E.REGIONS[To.region].icon} ${To.name}<br><span>${E.REGIONS[To.region].name}</span></div></div>
+      <div class="mute small" style="margin-top:10px">${E.MOVE_DAYS}일 동안 짐을 옮깁니다</div></div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add('out'), 2500);
+    setTimeout(() => el.remove(), 3000);
+  },
+};
 
 function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
@@ -449,7 +539,8 @@ function render() {
     document.getElementById('modal').innerHTML = lastModalHtml = modalHtml;
   }
   document.body.classList.toggle('playing', !!S);
-  if (!S) return;
+  document.body.classList.toggle('starting', !S);
+  if (!S) { Scene.setPreview(startPreview()); return; }
   const top = renderTop();
   if (top !== lastTopHtml) document.getElementById('top').innerHTML = lastTopHtml = top;
   const tabsH = renderTabs();
@@ -531,12 +622,16 @@ function act(a, d) {
     case 'event': E.resolveEvent(S, i); break;
     case 'closemodal': modal = null; break;
     case 'reset': modal = { type: 'reset' }; break;
-    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '' }; lastMainHtml = lastTopHtml = lastTabsHtml = lastStatusHtml = ''; tab = null; document.getElementById('status').innerHTML = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
-    case 'selpack': startSel.pack = k; break;
+    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '', step: 0, region: 'city', house: 'gosiwon' }; lastMainHtml = lastTopHtml = lastTabsHtml = lastStatusHtml = ''; tab = null; document.getElementById('status').innerHTML = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
+    case 'selpack': startSel.pack = k; previewState = null; break;
+    case 'sstep': { const nm = document.getElementById('chname'); if (nm) startSel.channel = nm.value; startSel.step = i; if (i >= 2 && (!startSel.house || E.HOUSES[startSel.house].region !== startSel.region)) startSel.house = E.housesOf(startSel.region)[0]; break; }
+    case 'sregion': startSel.region = k; startSel.house = E.housesOf(k)[0]; break;
+    case 'shouse': startSel.house = k; break;
     case 'seltrait': startSel.trait = k; break;
     case 'begin': {
-      const nm = (document.getElementById('chname').value || '').trim() || '나의 정보 채널';
-      S = E.newGame({ channel: nm, trait: startSel.trait, pack: startSel.pack });
+      const nm = (startSel.channel || '').trim() || '나의 정보 채널';
+      S = E.newGame({ channel: nm, trait: startSel.trait, pack: startSel.pack, region: startSel.region, house: startSel.house });
+      Scene.setPreview(null); previewState = null; document.body.classList.remove('starting');
       tab = null; save(); break;
     }
   }
@@ -553,6 +648,7 @@ function loop(now) {
     E.advance(S, dt * C.speeds[speedIdx] * E.ghPerRealSec(), dt);
   }
   if (S) Scene.frame(S, paused || modal ? 0 : dt, C.speeds[speedIdx]);
+  else if (previewState) { previewState.gh += dt * 1.2; Scene.frame(null, dt, 1); }
   saveAcc += dt; renderAcc += dt;
   if (saveAcc > 5) { saveAcc = 0; save(); }
   if (renderAcc > 0.12) { renderAcc = 0; render(); }
