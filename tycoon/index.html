@@ -196,7 +196,7 @@ let speedIdx = 0;
 let paused = false;
 let modal = null;        // { type, ... }
 let lastMainHtml = '', lastTopHtml = '', lastTabsHtml = '', lastModalHtml = '';
-let startSel = { trait: 'planner', pack: 'free', channel: '', step: 0, region: 'city', house: 'gosiwon' };
+let startSel = { trait: 'planner', pack: 'free', channel: '', step: 0, region: 'city', house: 'gosiwon', genre: 'info' };
 
 // ───────── 저장 ─────────
 function save() {
@@ -238,7 +238,7 @@ function renderTop() {
   const stCol = S.stamina < 25 ? 'var(--red)' : S.stamina < 50 ? 'var(--yellow)' : 'var(--green)';
   return `
   <div class="row between">
-    <div><div class="ch">${esc(S.channel)}</div><div class="date">${E.REGIONS[S.region].icon} ${E.HOUSES[S.house].name} · ${E.gameDate(S.gh)}</div></div>
+    <div><div class="ch">${esc(S.channel)}</div><div class="date">${E.GENRES[S.genre].icon} ${E.REGIONS[S.region].icon} ${E.HOUSES[S.house].name} · ${E.gameDate(S.gh)}</div></div>
     <div class="row speeds">
       <button data-a="pause" class="${paused ? 'on' : ''}">${paused ? '▶' : '⏸'}</button>
       ${C.speeds.map((x, i) => `<button data-a="speed" data-i="${i}" class="${!paused && i === speedIdx ? 'on' : ''}">${x}배</button>`).join('')}
@@ -337,10 +337,10 @@ function renderChannel() {
     <div class="kv"><div class="k">지난 영상 하루 조회</div><div class="v">${fmt(S.tailRate * (1 + 0.08 * E.seoLv(S)))}</div></div>
   </div></div>`;
   h += `<div class="card"><h3>${S.monetized ? '💰 수익 창출 중' : '🔒 수익 창출 조건'}</h3>`;
-  if (S.monetized) h += `<div class="mute">조회 1천 회당 광고 ${won(C.genre.adRpm * 1000)} + 제휴 링크 ${won(C.genre.affiliatePerView * 1000)}</div>`;
+  if (S.monetized) h += `<div class="mute">조회 1천 회당 광고 ${won(E.GENRES[S.genre].rpm * 1000)} + 제휴 링크 ${won(C.genre.affiliatePerView * E.GENRES[S.genre].aff * 1000)}</div>`;
   else h += `<div class="small">구독자 ${fmt(S.subs)} / 1,000</div><div class="bar"><i style="width:${sb * 100}%"></i></div>
     <div class="small" style="margin-top:6px">시청 시간 ${fmt(S.watchHours)} / 4,000시간</div><div class="bar"><i style="width:${wh * 100}%"></i></div>
-    <div class="mute small" style="margin-top:6px">그 전까지는 설명란 제휴 링크 수익만 들어옵니다 (조회 1천 회당 ${won(C.genre.affiliatePerView * 1000)})</div>`;
+    <div class="mute small" style="margin-top:6px">그 전까지는 설명란 제휴 링크 수익만 들어옵니다 (조회 1천 회당 ${won(C.genre.affiliatePerView * E.GENRES[S.genre].aff * 1000)})</div>`;
   h += `</div><div class="card"><h3>🎞️ 최근 영상</h3>`;
   if (!S.videos.length) h += `<div class="mute">아직 영상이 없습니다.</div>`;
   for (const v of S.videos.slice(0, 15)) {
@@ -559,8 +559,10 @@ function renderStart() {
       <div class="navrow"><button data-a="sstep" data-i="1">이전</button><button class="primary" data-a="sstep" data-i="3">다음</button></div>`;
   } else if (st === 3) {
     const traits = Object.entries(E.TRAITS).map(([k, t]) => `<button class="opt ${startSel.trait === k ? 'sel' : ''}" data-a="seltrait" data-k="${k}"><b>${t.name}</b><div class="mute small">${t.desc}</div></button>`).join('');
-    p = `<div class="sp-title">어떤 크리에이터인가요?</div>
-      <input type="text" id="chname" maxlength="20" placeholder="채널 이름 (예: 찌야의 생활정보)" value="${esc(startSel.channel)}" style="margin-bottom:10px">${traits}
+    const genres = Object.entries(E.GENRES).map(([k, g]) => `<button class="rcard ${startSel.genre === k ? 'sel' : ''}" data-a="sgenre" data-k="${k}"><span class="ic">${g.icon}</span><b>${g.name}</b><div class="mute small">${g.desc}</div></button>`).join('');
+    p = `<div class="sp-title">어떤 채널을 만들까요?</div><div class="rgrid" style="margin-bottom:12px">${genres}</div>
+      <input type="text" id="chname" maxlength="20" placeholder="채널 이름 (예: 찌야의 생활정보)" value="${esc(startSel.channel)}" style="margin-bottom:10px">
+      <div class="sp-title" style="font-size:15px">나의 특성</div>${traits}
       <div class="navrow"><button data-a="sstep" data-i="2">이전</button><button class="primary" data-a="sstep" data-i="4">다음</button></div>`;
   } else {
     const sets = E.START_SETS.map(id => {
@@ -570,7 +572,7 @@ function renderStart() {
     }).join('');
     const r = E.REGIONS[startSel.region], H = E.HOUSES[startSel.house];
     p = `<div class="sp-title">시작 세트</div>${sets}<div class="mock">유료 세트는 모의 결제입니다. 실제로 돈이 나가지 않습니다.</div>
-      <div class="mute small" style="margin-bottom:8px">${r.icon} ${r.name} · ${H.name} · ${E.TRAITS[startSel.trait].name} · 시작 자금 ${won(r.startMoney - H.move)}</div>
+      <div class="mute small" style="margin-bottom:8px">${r.icon} ${r.name} · ${H.name} · ${E.GENRES[startSel.genre || 'info'].icon} ${E.GENRES[startSel.genre || 'info'].name} · ${E.TRAITS[startSel.trait].name} · 시작 자금 ${won(r.startMoney - H.move)}</div>
       <button class="bigstart" data-a="begin">📺 채널 개설하기</button>
       <div class="navrow"><button data-a="sstep" data-i="3">이전</button></div>`;
   }
@@ -694,15 +696,16 @@ function act(a, d) {
     case 'event': E.resolveEvent(S, i); break;
     case 'closemodal': modal = null; break;
     case 'reset': modal = { type: 'reset' }; break;
-    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '', step: 0, region: 'city', house: 'gosiwon' }; lastMainHtml = lastTopHtml = lastTabsHtml = lastStatusHtml = ''; tab = null; document.getElementById('status').innerHTML = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
+    case 'confirmreset': localStorage.removeItem(SAVE_KEY); S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '', step: 0, region: 'city', house: 'gosiwon', genre: 'info' }; lastMainHtml = lastTopHtml = lastTabsHtml = lastStatusHtml = ''; tab = null; document.getElementById('status').innerHTML = ''; document.getElementById('main').innerHTML = ''; document.getElementById('top').innerHTML = ''; document.getElementById('tabs').innerHTML = ''; break;
     case 'selpack': startSel.pack = k; previewState = null; break;
     case 'sstep': { const nm = document.getElementById('chname'); if (nm) startSel.channel = nm.value; startSel.step = i; if (i >= 2 && (!startSel.house || E.HOUSES[startSel.house].region !== startSel.region)) startSel.house = E.housesOf(startSel.region)[0]; break; }
     case 'sregion': startSel.region = k; startSel.house = E.housesOf(k)[0]; break;
     case 'shouse': startSel.house = k; break;
+    case 'sgenre': { const nm = document.getElementById('chname'); if (nm) startSel.channel = nm.value; startSel.genre = k; break; }
     case 'seltrait': startSel.trait = k; break;
     case 'begin': {
       const nm = (startSel.channel || '').trim() || '나의 정보 채널';
-      S = E.newGame({ channel: nm, trait: startSel.trait, pack: startSel.pack, region: startSel.region, house: startSel.house });
+      S = E.newGame({ channel: nm, genre: startSel.genre || 'info', trait: startSel.trait, pack: startSel.pack, region: startSel.region, house: startSel.house });
       Scene.setPreview(null); previewState = null; document.body.classList.remove('starting');
       tab = null; save(); break;
     }

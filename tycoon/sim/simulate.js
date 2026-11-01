@@ -50,8 +50,8 @@ function botBuy(s) {
   }
 }
 
-function play(pack, seed, minutes, region, style) {
-  const s = E.newGame({ pack, region: region || 'city', trait: 'planner', rng: mulberry32(seed) });
+function play(pack, seed, minutes, region, style, genre) {
+  const s = E.newGame({ pack, genre: genre || 'info', region: region || 'city', trait: 'planner', rng: mulberry32(seed) });
   s._style = style || 'self';
   const dtReal = 0.5, marks = { 5: null, 15: null, 30: null, 60: null };
   let firstUploadSec = null;
@@ -88,3 +88,5 @@ console.log('— 시작 세트별 (도시)');
 for (const pack of E.START_SETS.slice(1)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play(pack, 1000 + i, 60, 'city')); row(pack, runs); }
 console.log('— 제작 방식별 (도시, 무료 시작)');
 for (const style of ['ai', 'mix']) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, 'city', style)); row(style === 'ai' ? '전부 AI' : '기획·편집만 AI', runs); }
+console.log('— 장르별 (도시, 무료 시작)');
+for (const g of Object.keys(E.GENRES)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, 'city', 'self', g)); row(E.GENRES[g].name, runs); }

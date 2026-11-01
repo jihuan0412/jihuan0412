@@ -225,6 +225,23 @@
   const MOVE_DAYS = 3;          // 이사 기간 (업로드 불가)
   const RENT_DAYS = 30;
 
+  // ───────────────────────── 장르 ─────────────────────────
+  // B=조회수 계수, rpm=조회 1회당 광고 수익(원), conv=구독 전환 배율, tail=롱테일 배율, viral=바이럴 확률 배율,
+  // tee=AI 촬영 티 배율(얼굴이 나와야 하는 장르일수록 큼), micX=마이크 효과 배율, sponsor=협찬 배율
+  const GENRES = {
+    info:  { name: '정보·교육', icon: '📚', B: 0.7, rpm: 3.0, aff: 1, conv: 1, tail: 1.3, viral: 0.8, tee: 0.8, micX: 1, sponsor: 1,
+      desc: '느리게 크지만 광고 단가가 높고 검색으로 꾸준히 본다. AI 제작에 잘 맞는다.' },
+    game:  { name: '게임', icon: '🎮', B: 0.85, rpm: 1.4, aff: 0.7, conv: 0.95, tail: 0.7, viral: 1.5, tee: 1, micX: 1, sponsor: 0.9,
+      desc: '빨리 크고 바이럴이 잦지만 단가가 낮다. 트렌드가 금방 식는다.',
+      topics: ['신작 RPG 첫인상', '공포게임 실황 1화', '랭크 올리는 법', '인디게임 숨은 명작', '레트로 게임 추억', '게임 속 버그 모음', '모바일 게임 과금 비교', '스피드런 도전', '게임 OST 명곡', '멀티플레이 웃긴 순간', '신작 발표회 정리', '게임 패드 비교'] },
+    food:  { name: '먹방·일상', icon: '🍜', B: 0.74, rpm: 1.8, aff: 0.8, conv: 1.12, tail: 0.8, viral: 1.2, tee: 1.8, micX: 1, sponsor: 1.5,
+      desc: '팬이 끈끈하고 협찬이 빨리 들어온다. 얼굴이 나와야 해서 AI 촬영이 어렵다.',
+      topics: ['편의점 신상 털기', '라면 10종 끓여 먹기', '자취 요리 일주일', '야식 ASMR', '동네 맛집 탐방', '다이어트 식단 브이로그', '대왕 돈가스 도전', '집밥 한 상 차리기', '디저트 카페 투어', '아침 루틴 브이로그', '장보기 하울', '밀키트 솔직 후기'] },
+    music: { name: '음악·커버', icon: '🎵', B: 0.7, rpm: 2.2, aff: 0.8, conv: 1.05, tail: 1.1, viral: 1.1, tee: 1.3, micX: 2, sponsor: 1,
+      desc: '마이크 장비 효과가 두 배. 저작권 경고가 잦다.',
+      topics: ['요즘 인기곡 어쿠스틱 커버', '90년대 명곡 메들리', '통기타 입문 코드', '피아노로 치는 드라마 OST', '방구석 노래방', '작곡 첫걸음', '버스킹 현장', '목소리 관리 꿀팁', '캐럴 커버', '1인 아카펠라', '밴드 합주 브이로그', '음향 장비 비교'] },
+  };
+
   const TOPICS = [
     '2026 연말정산 바뀐 점', '청년도약계좌 갈아타기', 'AI로 엑셀 자동화', '전기요금 누진제 피하는 법',
     '실업급여 받는 조건', '중고차 사기 피하는 법', '자동차세 연납 할인', '해외직구 관세 기준',
@@ -253,9 +270,10 @@
   function newGame(opt) {
     opt = opt || {};
     const region = REGIONS[opt.region] ? opt.region : 'city';
+    const genre = GENRES[opt.genre] ? opt.genre : 'info';
     const house = (HOUSES[opt.house] && HOUSES[opt.house].region === region) ? opt.house : housesOf(region)[0];
     const s = {
-      v: 2, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], candidates: [], candRefreshGh: 0,
+      v: 2, genre, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], candidates: [], candRefreshGh: 0,
       pipeline: ['self', 'self', 'self'], ai: { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true },
       live: null, goods: null, membersOn: false, channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
       // 한 단계 위 집에서 시작하면 그 이사비만큼 덜 가지고 시작
@@ -302,7 +320,7 @@
     if (Rg.editMul) e.edit *= Rg.editMul;
     for (const k in EQUIP) {
       const t = EQUIP[k].tiers[eq[k] || 0];
-      if (t.q) e.q += t.q;
+      if (t.q) e.q += t.q * (k === 'mic' ? G(s).micX : 1);
       if (t.plan) e.plan *= 1 - t.plan;
       if (t.shoot) e.shoot *= 1 - t.shoot;
       if (t.edit) e.edit *= 1 - t.edit;
@@ -318,6 +336,7 @@
     if (s.trait === 'planner') q += 5;
     return clamp(q, 0, CONFIG.qualityMax);
   }
+  function G(s) { return GENRES[s.genre] || GENRES.info; }
   function aiLevel(s) {
     let lv = 0;
     for (let i = 1; i < AI_LEVELS.length; i++) { const L = AI_LEVELS[i]; if (s.ai.made >= L.need && s.ai.plan >= (L.plan || 0)) lv = i; }
@@ -343,7 +362,7 @@
     if (how === 'ai') {
       const lv = aiLevel(s), P = AI_PLANS[s.ai.plan];
       let q = Math.min(P.cap, 42 + AI_LEVELS[lv].q + effEquip(s).gpu * 2);
-      if (i === 1) q -= AI_LEVELS[lv].tee;
+      if (i === 1) q -= AI_LEVELS[lv].tee * G(s).tee;
       return q;
     }
     if (how === 'staff') { const st = (s.staff || []).find(x => STAFF_ROLES[x.role].stage === i); return clamp(30 + (st ? st.ability : 50) * 0.45 + effects(s).q * 0.7, 0, CONFIG.qualityMax); }
@@ -369,6 +388,7 @@
     if (s.favor >= c.favorBonusAt) r += c.favorBonus;
     if (s.trait === 'charisma') r *= 1.2;
     if (hasStaff(s, 'community')) r *= 1.05;
+    r *= G(s).conv;
     if (s._lastAI && aiLevel(s) < 4) r *= 0.88;   // AI 영상은 팬 충성도가 조금 낮다
     return r;
   }
@@ -376,7 +396,7 @@
   function expectedViews(s, T, q) {
     const g = CONFIG.genre;
     const rm = (REGIONS[s.region] || {}).reachMul || 1;
-    return g.B * rm * Math.pow(CONFIG.S0 + CONFIG.reach * s.subs, CONFIG.subsExp) * (q / 50) * (s.favor / 50) * T * s.algoMul * thumbMul(s);
+    return G(s).B * rm * Math.pow(CONFIG.S0 + CONFIG.reach * s.subs, CONFIG.subsExp) * (q / 50) * (s.favor / 50) * T * s.algoMul * thumbMul(s);
   }
 
   // ───────────────────────── 트렌드 카드 ─────────────────────────
@@ -395,10 +415,11 @@
     const range = comp === '낮음' ? [0.7, 1.3] : comp === '보통' ? [0.6, 1.7] : [0.5, 2.0];
     const T = rr(s, range[0], range[1]);
     const used = new Set(s.trends.map(c => c.topic));
-    let topic = pick(s, TOPICS), guard = 0;
-    while (used.has(topic) && guard++ < 20) topic = pick(s, TOPICS);
+    const pool = G(s).topics || TOPICS;
+    let topic = pick(s, pool), guard = 0;
+    while (used.has(topic) && guard++ < 20) topic = pick(s, pool);
     return { id: Math.floor(rnd(s) * 1e9), topic, comp, T, range,
-      expiresGh: s.gh + rr(s, CONFIG.trends.expireDays[0], CONFIG.trends.expireDays[1]) * 24 };
+      expiresGh: s.gh + rr(s, CONFIG.trends.expireDays[0], CONFIG.trends.expireDays[1]) * (s.genre === 'game' ? 0.6 : 1) * 24 };
   }
   function refreshTrends(s) {
     const n = CONFIG.trends.count + (s.trait === 'planner' ? 1 : 0);
@@ -499,6 +520,7 @@
     const vc = CONFIG.viral;
     let pv = u.q >= 80 ? vc.q80 : u.q >= 70 ? vc.q70 : vc.base;
     if (s.viralBoost) { pv *= s.viralBoost; s.viralBoost = 0; }
+    pv *= G(s).viral;
     let viral = false;
     if (rnd(s) < pv) { V *= rr(s, vc.mul[0], vc.mul[1]); viral = true; }
     const vid = { id: ++s.videoSeq, ai: (u.how || []).includes('ai'), local: !!u.card.local, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
@@ -706,6 +728,7 @@
   function rollEvent(s) {
     const pool = ['sale', 'gift'];
     if (s.ai.made > 0 && s.ai.plan > 0) pool.push('aiprice', 'aiupdate');
+    if (s.subs >= 200) { pool.push('copyright'); if (s.genre === 'music') pool.push('copyright', 'copyright'); if (s._lastAI) pool.push('copyright'); }
     const Rg = REGIONS[s.region];
     if (Rg) pool.push(...Rg.events, ...Rg.events);
     if (s.subs >= 300) pool.push('hate', 'hate');
@@ -717,13 +740,14 @@
       choices: [ { label: '가장 싼 다음 장비 바로 구매' }, { label: '지나친다' } ] };
     else if (id === 'gift') s.pendingEvent = { id, title: '구독자 선물', text: '구독자가 손편지와 간식을 보냈습니다.',
       choices: [ { label: '감사 커뮤니티 글 (호감도 +3)' }, { label: '고맙게 먹고 쉰다 (체력 회복)' } ] };
+    else if (id === 'copyright') s.pendingEvent = { id, title: '저작권 경고', text: '최근 영상의 배경음악(또는 생성물)이 저작권 신고를 받았습니다.', choices: [{ label: '영상 비공개 (그 영상 조회수 중단)' }, { label: '수익을 원작자에게 양도 (₩' + fmt(Math.max(30000, s.subs * 8)) + ')' }, { label: '이의 제기 (40% 승리, 지면 호감도 -10)' }] };
     else if (id === 'aiprice') s.pendingEvent = { id, title: 'AI 구독료 인상', text: `AI 서비스가 다음 달부터 요금을 20% 올린다고 합니다.`, choices: [{ label: `이번 달 차액만 내고 유지 (₩${fmt(AI_PLANS[s.ai.plan].monthly * 0.2)})` }, { label: '한 단계 낮은 요금제로' }] };
     else if (id === 'aiupdate') s.pendingEvent = { id, title: 'AI 모델 업데이트', text: '새 AI 모델이 나왔습니다. 프롬프트를 다시 익혀야 합니다.', choices: [{ label: '새 모델로 갈아탄다 (숙련 경험 -5, 호감도 +2)' }, { label: '익숙한 모델 유지' }] };
     else if (REGION_EVENTS[id]) s.pendingEvent = Object.assign({ id }, REGION_EVENTS[id].make(s));
     else if (id === 'sponsor') s.pendingEvent = { id, title: '소규모 협찬 문의', text: '앱 회사가 영상 중간 광고를 제안했습니다.',
       choices: [ { label: `수락 (₩${fmt(sponsorPay(s))}, 호감도 -4)` }, { label: '거절 (호감도 +1)' } ] };
   }
-  function sponsorPay(s) { return Math.round((50000 + s.subs * 40) * ((REGIONS[s.region] || {}).sponsorMul || 1) * (hasStaff(s, 'manager') ? 1.5 : 1) / 1000) * 1000; }
+  function sponsorPay(s) { return Math.round((50000 + s.subs * 40) * ((REGIONS[s.region] || {}).sponsorMul || 1) * (hasStaff(s, 'manager') ? 1.5 : 1) * G(s).sponsor / 1000) * 1000; }
   function cheapestNext(s) {
     let best = null;
     for (const k in EQUIP) { const n = equipNext(s, k); if (n && (!best || n.price < best.price)) best = { k, price: n.price }; }
@@ -765,6 +789,12 @@
       return true;
     }
     if (e.id === 'aicaught') { fav(-20); s.ai.label = true; return true; }
+    if (e.id === 'copyright') {
+      if (ci === 0) { const v = s.videos[0]; if (v) { v.V = v.views; v.tailAdded = true; } log(s, '영상을 비공개로 돌렸습니다.', 'info'); }
+      else if (ci === 1) s.money -= Math.max(30000, s.subs * 8);
+      else if (rnd(s) < 0.4) log(s, '이의 제기 승리!', 'good'); else { fav(-10); log(s, '이의 제기 실패… 호감도 -10', 'bad'); }
+      return true;
+    }
     if (e.id === 'aiprice') { if (ci === 1 && s.ai.plan > 0) { s.ai.plan--; log(s, `AI ${AI_PLANS[s.ai.plan].name}(으)로 낮췄습니다.`, 'info'); } else s.money -= Math.round(AI_PLANS[s.ai.plan].monthly * 0.2); return true; }
     if (e.id === 'aiupdate') { if (ci === 0) { s.ai.made = Math.max(0, s.ai.made - 5); fav(2); } return true; }
     if (e.id === 'viral') {
@@ -828,7 +858,7 @@
     s.watchHours += dv * (CONFIG.watchMinBase + CONFIG.watchMinPerQ * q) / 60;
     s.subs += dv * convRate(s);
     const g = CONFIG.genre;
-    const inc = dv * ((s.monetized ? g.adRpm : 0) + g.affiliatePerView);
+    const inc = dv * ((s.monetized ? G(s).rpm : 0) + g.affiliatePerView * G(s).aff);
     s.money += inc; s.totalIncome += inc;
     return inc;
   }
@@ -938,7 +968,7 @@
     }
     // 롱테일 (지난 영상 전체)
     if (s.tailRate > 0) {
-      const dv = s.tailRate * (h / 24) * (1 + 0.08 * seoLv(s));
+      const dv = s.tailRate * (h / 24) * (1 + 0.08 * seoLv(s)) * G(s).tail;
       addViews(s, dv, s.tailQ);
       s.tailRate *= Math.exp(-h / (CONFIG.tailTauDays * 24));
     }
@@ -959,7 +989,7 @@
     if (t1 >= s.nextAlgoGh) {
       s.algoMul = rr(s, CONFIG.events.algoMul[0], CONFIG.events.algoMul[1]);
       s.nextAlgoGh += CONFIG.events.algoEveryDays * 24;
-      log(s, `알고리즘 개편: 정보 채널 노출 ×${s.algoMul.toFixed(2)}`, s.algoMul >= 1 ? 'good' : 'bad');
+      log(s, `알고리즘 개편: ${G(s).name} 노출 ×${s.algoMul.toFixed(2)}`, s.algoMul >= 1 ? 'good' : 'bad');
     }
     // 랜덤 이벤트
     if (t1 >= s.nextEventGh && !s.pendingEvent) {
@@ -988,6 +1018,7 @@
   function migrate(s) {
     if (!s.region) { s.region = 'city'; s.house = 'oneroom'; s.moving = null; s.nextRentGh = s.gh + RENT_DAYS * 24; s.debtDays = 0; }
     for (const k in EQUIP) if (s.equip[k] == null) s.equip[k] = 0;
+    if (!s.genre) s.genre = 'info';
     if (!s.ai) s.ai = { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true };
     if (!s.pipeline) s.pipeline = ['self', 'self', 'self'];
     if (!s.staff) s.staff = [];
@@ -1009,7 +1040,7 @@
   }
 
   root.Engine = {
-    CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
+    GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
     housesOf, effEquip, moveCost, canMove, moveHouse, partPay, migrate,
     AI_PLANS, AI_LEVELS, STAFF_ROLES, GOODS_COST, aiLevel, aiCredits, videoQuality, stageQuality, stageHoursBy, setPipeline, setAIPlan,
     canLive, startLive, memberIncome, canGoods, makeGoods, staffCap, refreshCandidates, hire, fire, monthly, hasStaff,
