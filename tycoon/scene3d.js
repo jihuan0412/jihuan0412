@@ -330,12 +330,13 @@
     const G = outG, region = H.region, hx = RW / 2, hz = RD / 2;
     const groundC = { city: '#7d8088', country: '#7fae54', seaside: '#e8d6a0', mountain: '#5f8f4a' }[region];
     const ground = box(60, 0.2, 60, flat(groundC), 0, -0.62, 0, G, { noCast: true });
+    anim.groundMat = ground.material; anim.groundBase = new T.Color(groundC); anim.leafMats = [];
     const tree = (x, z, s, kind) => {
       const g = new T.Group(); g.position.set(x, -0.5, z); g.scale.setScalar(s || 1); G.add(g);
       cyl(0.12, 0.16, 1.0, flat('#6b4a2b'), 0, 0.5, 0, g, 6);
       if (kind === 'pine') { cone(0.9, 1.4, flat('#2f6b3a'), 0, 1.4, 0, g, 7); cone(0.7, 1.2, flat('#357a42'), 0, 2.0, 0, g, 7); cone(0.45, 0.9, flat('#3d8a4a'), 0, 2.6, 0, g, 7); }
       else if (kind === 'palm') { const tr = cyl(0.08, 0.12, 2.6, flat('#9a7a4a'), 0, 1.3, 0, g, 6); for (let i = 0; i < 6; i++) { const lf = box(1.4, 0.04, 0.3, flat('#3c9a4a'), Math.cos(i) * 0.6, 2.6, Math.sin(i) * 0.6, g); lf.rotation.y = -i; lf.rotation.z = -0.4; } }
-      else { sph(0.8, flat('#4c9a46'), 0, 1.6, 0, g, 7, 5); sph(0.55, flat('#5aac50'), 0.35, 2.0, 0.2, g, 7, 5); }
+      else { const l1 = flat('#4c9a46'), l2 = flat('#5aac50'); anim.leafMats.push(l1, l2); sph(0.8, l1, 0, 1.6, 0, g, 7, 5); sph(0.55, l2, 0.35, 2.0, 0.2, g, 7, 5); }
       return g;
     };
     if (region === 'city') {
@@ -629,6 +630,12 @@
   }
   function setInset(px) { if (fallback) return fallback.setInset(px); if (Math.abs(px - insetCss) > 2) { insetCss = px; resize(); } }
   function setDock(px) { dockCss = px; resize(); }
+  function setLowGfx(on) {
+    if (!renderer) return;
+    renderer.shadowMap.enabled = !on; renderer.setPixelRatio(on ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+    scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+    resize();
+  }
 
   // 시작 화면 미리보기: 상태를 직접 넘기면 그 집을 보여 주고 천천히 돈다
   function setPreview(state) { preview = state; if (!state) { orbit = 0; placeCamera(); } }
@@ -683,7 +690,21 @@
     if (anim.lighthouse) anim.lighthouse.material.emissiveIntensity = night ? 2.5 + Math.sin(t * 3) : 0.3;
     if (anim.campfire) { anim.campfire.scale.setScalar(0.85 + Math.sin(t * 9) * 0.15); anim.campLight.intensity = night ? 1.4 + Math.sin(t * 11) * 0.3 : 0; }
     if (anim.fire) anim.fire.scale.setScalar(0.85 + Math.sin(t * 9) * 0.15);
-    if (anim.paddies) { const season = Math.floor(S.gh / 24 / 90) % 4; const col = ['#86b84f', '#5da53c', '#d8b84a', '#c8b89a'][season]; anim.paddies.forEach(m => m.color.set(col)); }
+    // 계절
+    const sea = root.Engine.season(S.gh);
+    if (anim.groundMat && S.region !== 'seaside') {
+      const tgt = sea === 3 ? new T.Color(S.region === 'city' ? '#c9ccd2' : '#eef2f6') : sea === 2 && S.region !== 'city' ? anim.groundBase.clone().lerp(new T.Color('#b8a050'), 0.35) : anim.groundBase;
+      anim.groundMat.color.lerp(tgt, Math.min(1, dt * 2));
+    }
+    if (anim.leafMats) { const lc = new T.Color(['#5aac50', '#3f9a3a', '#d8862a', '#e6ecef'][sea]); anim.leafMats.forEach((m, i) => m.color.lerp(i % 2 ? lc : lc.clone().multiplyScalar(0.88), Math.min(1, dt * 2))); }
+    if (sea === 3 && !preview && !anim.snow) {
+      const n = 220, geo = new T.BufferGeometry(), pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() - 0.5) * 30; pos[i * 3 + 1] = Math.random() * 14; pos[i * 3 + 2] = (Math.random() - 0.5) * 30; }
+      geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+      anim.snow = new T.Points(geo, new T.PointsMaterial({ color: '#ffffff', size: 0.12, transparent: true, opacity: 0.9 })); scene.add(anim.snow);
+    } else if (sea !== 3 && anim.snow) { scene.remove(anim.snow); anim.snow.geometry.dispose(); anim.snow = null; }
+    if (anim.snow) { const p = anim.snow.geometry.attributes.position; for (let i = 0; i < p.count; i++) { let y = p.array[i * 3 + 1] - dt * 1.2; const x = p.array[i * 3], z = p.array[i * 3 + 2]; const inside = Math.abs(x) < RW / 2 + 0.2 && Math.abs(z) < RD / 2 + 0.2; if (y < (inside ? 3.2 : -0.5)) y = 14; p.array[i * 3 + 1] = y; p.array[i * 3] = x + Math.sin(t + i) * dt * 0.2; } p.needsUpdate = true; }
+    if (anim.paddies) { const col = ['#86b84f', '#5da53c', '#d8b84a', '#e8e4dc'][root.Engine.season(S.gh)]; anim.paddies.forEach(m => m.color.set(col)); }
     if (anim.water) {
       const pos = anim.water.mesh.geometry.attributes.position, b = anim.water.base;
       for (let i = 0; i < pos.count; i++) { const x = b[i * 3], y = b[i * 3 + 1]; pos.array[i * 3 + 2] = anim.water.stream ? Math.sin(y * 1.5 + t * 4) * 0.05 : Math.sin(x * 0.6 + t * 1.6) * 0.12 + Math.cos(y * 0.8 + t * 1.2) * 0.1; }
@@ -828,5 +849,5 @@
   function tapFx(x, y) { if (fallback) return fallback.tapFx(x, y); floatText('+작업!', x + (Math.random() - 0.5) * 40, y, 'tap'); }
   function toLogical(cx, cy) { if (fallback) return fallback.toLogical(cx, cy); return { x: cx, y: cy }; }
 
-  root.Scene = { init, frame, tapFx, toLogical, resize, setInset, setDock, setPreview, is3D: () => !fallback };
+  root.Scene = { init, frame, tapFx, toLogical, resize, setInset, setDock, setPreview, setLowGfx, is3D: () => !fallback };
 })(window);

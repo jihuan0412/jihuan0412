@@ -340,6 +340,10 @@
     return clamp(q, 0, CONFIG.qualityMax);
   }
   function G(s) { return GENRES[s.genre] || GENRES.info; }
+  // 계절: 게임 속 1년 = 120일 (계절마다 30일)
+  const SEASONS = [{ name: '봄', icon: '🌸' }, { name: '여름', icon: '☀️' }, { name: '가을', icon: '🍂' }, { name: '겨울', icon: '❄️' }];
+  const SEASON_LOCAL = { city: [1, 1, 1, 1.1], country: [1.15, 1, 1.3, 0.85], seaside: [1, 1.35, 0.95, 0.8], mountain: [1.05, 1.1, 1.3, 1.15] };
+  function season(gh) { return Math.floor((gh / 24) % 120 / 30); }
   function aiLevel(s) {
     let lv = 0;
     for (let i = 1; i < AI_LEVELS.length; i++) { const L = AI_LEVELS[i]; if (s.ai.made >= L.need && s.ai.plan >= (L.plan || 0)) lv = i; }
@@ -410,8 +414,9 @@
       const used = new Set(s.trends.map(c => c.topic));
       const pool = Rg.topics.filter(t => !used.has(t));
       if (pool.length) {
-        const range = Rg.localT;
-        return { id: Math.floor(rnd(s) * 1e9), topic: pick(s, pool), comp: '낮음', local: true, T: rr(s, range[0], range[1]), range,
+        const sm = (SEASON_LOCAL[s.region] || [1, 1, 1, 1])[season(s.gh)];
+        const range = [Rg.localT[0] * sm, Rg.localT[1] * sm];
+        return { id: Math.floor(rnd(s) * 1e9), topic: pick(s, pool), comp: '낮음', local: true, season: sm !== 1 ? sm : 0, T: rr(s, range[0], range[1]), range,
           expiresGh: s.gh + rr(s, 8, 16) * 24 };
       }
     }
@@ -532,7 +537,7 @@
     pv *= G(s).viral;
     let viral = false;
     if (rnd(s) < pv) { V *= rr(s, vc.mul[0], vc.mul[1]); viral = true; }
-    const vid = { id: ++s.videoSeq, ai: (u.how || []).includes('ai'), local: !!u.card.local, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
+    const vid = { avd: CONFIG.watchMinBase + CONFIG.watchMinPerQ * u.q, id: ++s.videoSeq, ai: (u.how || []).includes('ai'), local: !!u.card.local, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
     s.videos.unshift(vid);
     if (s.videos.length > 60) s.videos.length = 60;
     s._lastQ = u.q;
@@ -1132,7 +1137,7 @@
   }
 
   root.Engine = {
-    GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
+    SEASONS, SEASON_LOCAL, season, GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
     housesOf, effEquip, moveCost, canMove, moveHouse, partPay, migrate,
     AI_PLANS, AI_LEVELS, STAFF_ROLES, GOODS_COST, aiLevel, aiCredits, videoQuality, stageQuality, stageHoursBy, setPipeline, setAIPlan,
     ENDINGS, MCN_COST, MODEL_COST, canFoundMCN, foundMCN, scoutCreators, signCreator, mcnTotalSubs, canTrainModel, trainModel,
