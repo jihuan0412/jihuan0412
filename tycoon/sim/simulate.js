@@ -22,6 +22,12 @@ function botMove(s) {
   const H = E.HOUSES[next];
   if (E.canMove(s, next).ok && s.money > E.moveCost(s, next) + H.rent) E.moveHouse(s, next);
 }
+function botAI(s) {
+  // AI 위주: 열린 가장 높은 요금제로 올리고, 크레딧이 되면 파이프라인을 AI로
+  for (let p = E.AI_PLANS.length - 1; p > s.ai.plan; p--) if (s.subs >= E.AI_PLANS[p].unlock && s.money > E.AI_PLANS[p].monthly * 3) { E.setAIPlan(s, p); break; }
+  const mix = s._style === 'mix' ? ['ai', 'self', 'ai'] : ['ai', 'ai', 'ai'];
+  for (let i = 0; i < 3; i++) s.pipeline[i] = mix[i];
+}
 function saving(s) {
   const list = E.housesOf(s.region), next = list[list.indexOf(s.house) + 1];
   if (!next || s.subs < E.HOUSES[next].unlock) return 0;
@@ -44,8 +50,9 @@ function botBuy(s) {
   }
 }
 
-function play(pack, seed, minutes, region) {
+function play(pack, seed, minutes, region, style) {
   const s = E.newGame({ pack, region: region || 'city', trait: 'planner', rng: mulberry32(seed) });
+  s._style = style || 'self';
   const dtReal = 0.5, marks = { 5: null, 15: null, 30: null, 60: null };
   let firstUploadSec = null;
   for (let t = 0; t < minutes * 60; t += dtReal) {
@@ -54,6 +61,7 @@ function play(pack, seed, minutes, region) {
     if (!s.routine.on && E.canWork(s) && !s.resting) {
       if (s.stamina < 50) s.resting = true; else E.startVideo(s, E.bestCardIdx(s));
     }
+    if (s._style !== 'self') botAI(s);
     botBuy(s);
     if (!s.job && !s.uploadReady) botMove(s);
     E.advance(s, dtReal * E.ghPerRealSec(), dtReal);
@@ -78,3 +86,5 @@ console.log('— 지역별 (무료 시작)');
 for (const region of Object.keys(E.REGIONS)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, region)); row(region, runs); }
 console.log('— 시작 세트별 (도시)');
 for (const pack of E.START_SETS.slice(1)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play(pack, 1000 + i, 60, 'city')); row(pack, runs); }
+console.log('— 제작 방식별 (도시, 무료 시작)');
+for (const style of ['ai', 'mix']) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, 'city', style)); row(style === 'ai' ? '전부 AI' : '기획·편집만 AI', runs); }

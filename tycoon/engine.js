@@ -194,6 +194,33 @@
     campstudio:{ region: 'mountain', name: '캠핑장 스튜디오', rent: 400000, move: 1500000, unlock: 10000, size: [10, 8], wall: 'log', floor: 'wood', furnished: { space: 2, light: 1 }, q: 3, regen: 1, staff: 3, desc: '캠핑장 관리동을 통째로 빌렸다.' },
     resort:    { region: 'mountain', name: '산속 리조트 스튜디오', rent: 1800000, move: 6000000, unlock: 100000, size: [12, 10], wall: 'white', floor: 'wood', furnished: { space: 3, light: 2 }, q: 5, regen: 1.5, staff: 6, desc: '숲속 리조트 한 동을 스튜디오로.' },
   };
+  // ───────────────────────── AI 제작 ─────────────────────────
+  // 구독 단계(돈으로 산다) × 숙련도(써야 오른다). 단계마다 '직접 / AI / 직원' 중 누가 할지 정한다.
+  const AI_PLANS = [
+    { name: '무료 체험', monthly: 0, credits: 10, cap: 50, timeMul: 1, unlock: 0, watermark: true },
+    { name: '기본 구독', monthly: 30000, credits: 50, cap: 65, timeMul: 1, unlock: 500 },
+    { name: '프로 구독', monthly: 150000, credits: 200, cap: 80, timeMul: 0.7, unlock: 5000 },
+    { name: '스튜디오 플랜', monthly: 600000, credits: 99999, cap: 90, timeMul: 0.5, unlock: 50000 },
+  ];
+  // 숙련 레벨: need=AI로 만든 영상 수, plan=필요 구독 단계. time=AI 단계 시간 배율, cr=단계별 크레딧, tee=AI 티 감점(촬영을 AI로 할 때)
+  const AI_LEVELS = [
+    { name: '초보', need: 0, time: 0.55, q: 0, cr: [3, 6, 3], tee: 15 },
+    { name: '프롬프트 감 잡음', need: 10, time: 0.42, q: 5, cr: [2, 4, 2], tee: 12 },
+    { name: '워크플로 정착', need: 30, time: 0.3, q: 10, cr: [1, 3, 1], tee: 8 },
+    { name: '자동화 설계자', need: 80, plan: 2, time: 0.15, q: 15, cr: [1, 1, 1], tee: 4 },
+    { name: 'AI 디렉터', need: 200, plan: 3, time: 0.06, q: 20, cr: [0.5, 1, 0.5], tee: 0 },
+  ];
+  // ───────────────────────── 직원 ─────────────────────────
+  const STAFF_ROLES = {
+    writer:    { name: '작가', icon: '✍️', stage: 0, salary: 150000, desc: '기획을 맡는다' },
+    shooter:   { name: '촬영 스태프', icon: '🎥', stage: 1, salary: 250000, desc: '촬영을 맡는다' },
+    editor:    { name: '편집자', icon: '✂️', stage: 2, salary: 250000, desc: '편집을 맡는다' },
+    manager:   { name: '매니저', icon: '📋', salary: 300000, desc: '협찬 단가 1.5배, 업로드 꾸준함 보너스' },
+    ai_op:     { name: 'AI 오퍼레이터', icon: '🤖', salary: 350000, desc: 'AI 크레딧 30% 절약, AI 숙련 +1단계처럼' },
+    community: { name: '커뮤니티 매니저', icon: '💬', salary: 120000, desc: '악플 피해 절반, 구독 전환 +5%' },
+  };
+  const NAMES = ['김하늘', '이도윤', '박서연', '최민준', '정예린', '강지호', '윤수아', '임태오', '한소율', '오지안', '서준우', '신다은', '권하람', '황시우', '송유나'];
+
   const housesOf = region => Object.keys(HOUSES).filter(k => HOUSES[k].region === region);
   const MOVE_DAYS = 3;          // 이사 기간 (업로드 불가)
   const RENT_DAYS = 30;
@@ -228,7 +255,9 @@
     const region = REGIONS[opt.region] ? opt.region : 'city';
     const house = (HOUSES[opt.house] && HOUSES[opt.house].region === region) ? opt.house : housesOf(region)[0];
     const s = {
-      v: 2, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
+      v: 2, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], candidates: [], candRefreshGh: 0,
+      pipeline: ['self', 'self', 'self'], ai: { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true },
+      live: null, goods: null, membersOn: false, channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
       // 한 단계 위 집에서 시작하면 그 이사비만큼 덜 가지고 시작
       gh: 0, money: REGIONS[region].startMoney - HOUSES[house].move, stamina: CONFIG.maxStaminaBase,
       subs: 0, totalViews: 0, watchHours: 0, favor: CONFIG.favor.start, monetized: false,
@@ -289,17 +318,48 @@
     if (s.trait === 'planner') q += 5;
     return clamp(q, 0, CONFIG.qualityMax);
   }
-  function stageHours(s, i) {
+  function aiLevel(s) {
+    let lv = 0;
+    for (let i = 1; i < AI_LEVELS.length; i++) { const L = AI_LEVELS[i]; if (s.ai.made >= L.need && s.ai.plan >= (L.plan || 0)) lv = i; }
+    if (hasStaff(s, 'ai_op')) lv = Math.min(AI_LEVELS.length - 1, lv + 1);
+    return lv;
+  }
+  function hasStaff(s, role) { return (s.staff || []).find(x => x.role === role); }
+  function stageMethod(s, i) { return (s.job && s.job.how) ? s.job.how[i] : (s.pipeline || ['self', 'self', 'self'])[i]; }
+  function stageHoursBy(s, i, how) {
     const e = effects(s);
-    let h = CONFIG.stages[i].hours * (1 - 0.05 * s.skills.speed) * [e.plan, e.shoot, e.edit][i];
+    const base = CONFIG.stages[i].hours;
+    if (how === 'ai') return base * AI_LEVELS[aiLevel(s)].time * AI_PLANS[s.ai.plan].timeMul * Math.sqrt(e.edit);
+    if (how === 'staff') { const st = (s.staff || []).find(x => STAFF_ROLES[x.role].stage === i); return base * (1.25 - (st ? st.ability : 50) / 100 * 0.7) * [e.plan, e.shoot, e.edit][i]; }
+    let h = base * (1 - 0.05 * s.skills.speed) * [e.plan, e.shoot, e.edit][i];
     if (s.trait === 'editor') h *= 0.75;
     if (i === 2 && s.job && s.job.outsource) h *= CONFIG.outsourceEdit.timeMul;
     return h;
+  }
+  function stageHours(s, i) { return stageHoursBy(s, i, stageMethod(s, i)); }
+  function aiCredits(s, i) { return AI_LEVELS[aiLevel(s)].cr[i] * (hasStaff(s, 'ai_op') ? 0.7 : 1); }
+  // 단계별 품질 → 영상 품질 (기획 30%, 촬영 40%, 편집 30%)
+  function stageQuality(s, i, how) {
+    if (how === 'ai') {
+      const lv = aiLevel(s), P = AI_PLANS[s.ai.plan];
+      let q = Math.min(P.cap, 42 + AI_LEVELS[lv].q + effEquip(s).gpu * 2);
+      if (i === 1) q -= AI_LEVELS[lv].tee;
+      return q;
+    }
+    if (how === 'staff') { const st = (s.staff || []).find(x => STAFF_ROLES[x.role].stage === i); return clamp(30 + (st ? st.ability : 50) * 0.45 + effects(s).q * 0.7, 0, CONFIG.qualityMax); }
+    return baseQuality(s);
+  }
+  function videoQuality(s, how) {
+    how = how || s.pipeline;
+    let q = 0.3 * stageQuality(s, 0, how[0]) + 0.4 * stageQuality(s, 1, how[1]) + 0.3 * stageQuality(s, 2, how[2]);
+    if (how.includes('ai') && AI_PLANS[s.ai.plan].watermark) q -= 8;
+    return clamp(q, 0, CONFIG.qualityMax);
   }
   function thumbLv(s) { return s.skills.thumb + effects(s).thumb; }
   function seoLv(s) { return s.skills.seo + effects(s).seo; }
   function stageStaminaPerHour(s, i) {
     if (i === 2 && s.job && s.job.outsource) return 0;
+    if (stageMethod(s, i) !== 'self') return 0;
     return CONFIG.stages[i].stamina / stageHours(s, i);
   }
   function convRate(s) {
@@ -308,6 +368,8 @@
     let r = c.base * q / c.qRef + c.early * c.earlyK / (s.subs + c.earlyK);
     if (s.favor >= c.favorBonusAt) r += c.favorBonus;
     if (s.trait === 'charisma') r *= 1.2;
+    if (hasStaff(s, 'community')) r *= 1.05;
+    if (s._lastAI && aiLevel(s) < 4) r *= 0.88;   // AI 영상은 팬 충성도가 조금 낮다
     return r;
   }
   function thumbMul(s) { return 1 + 0.04 * thumbLv(s); }
@@ -346,20 +408,27 @@
   }
   // 카드에 표시할 예상 조회수 범위
   function cardViewRange(s, card) {
-    const q = baseQuality(s);
+    const q = videoQuality(s);
     return [expectedViews(s, card.range[0], q) * 0.6, expectedViews(s, card.range[1], q) * 1.6];
   }
 
   // ───────────────────────── 행동 ─────────────────────────
-  function canWork(s) { return !s.job && !s.uploadReady && s.gh >= s.burnoutUntil && !s.pendingEvent && !s.moving; }
+  function canWork(s) { return !s.job && !s.uploadReady && s.gh >= s.burnoutUntil && !s.pendingEvent && !s.moving && !s.live; }
 
   function startVideo(s, cardIdx) {
     if (!canWork(s)) return false;
     const card = s.trends[cardIdx];
     if (!card) return false;
-    const outsource = s.routine.outsource && s.money >= CONFIG.outsourceEdit.cost;
+    const how = (s.pipeline || ['self', 'self', 'self']).slice();
+    for (let i = 0; i < 3; i++) {
+      if (how[i] === 'staff' && !(s.staff || []).find(x => STAFF_ROLES[x.role].stage === i)) how[i] = 'self';
+    }
+    const need = how.reduce((a, h, i) => a + (h === 'ai' ? aiCredits(s, i) : 0), 0);
+    if (need > s.ai.credits) { for (let i = 0; i < 3; i++) if (how[i] === 'ai') how[i] = 'self'; if (!s.routine.on) log(s, 'AI 크레딧이 모자라 직접 만듭니다.', 'bad'); }
+    else s.ai.credits -= need;
+    const outsource = how[2] === 'self' && s.routine.outsource && s.money >= CONFIG.outsourceEdit.cost;
     if (outsource) s.money -= CONFIG.outsourceEdit.cost;
-    s.job = { card, stage: 0, progress: 0, outsource };
+    s.job = { card, stage: 0, progress: 0, outsource, how };
     s.trends.splice(cardIdx, 1, makeCard(s));
     s.resting = false;
     return true;
@@ -388,7 +457,7 @@
     }
   }
   function tap(s) {
-    if (!s.job || s.gh < s.burnoutUntil || s.pendingEvent) return false;
+    if (!s.job || s.job.partTime || s.gh < s.burnoutUntil || s.pendingEvent) return false;
     workHours(s, CONFIG.tapHours);
     return true;
   }
@@ -413,7 +482,7 @@
   function finishJob(s) {
     const j = s.job;
     s.job = null;
-    s.uploadReady = { card: j.card, q: clamp(baseQuality(s) + rr(s, -CONFIG.qualityRand, CONFIG.qualityRand), 0, 100), thumbs: makeThumbs(s) };
+    s.uploadReady = { card: j.card, how: j.how, q: clamp(videoQuality(s, j.how) + rr(s, -CONFIG.qualityRand, CONFIG.qualityRand), 0, 100), thumbs: makeThumbs(s) };
     if (!s.routine.on) log(s, `「${j.card.topic}」 편집 완료 — 썸네일을 골라 업로드하세요.`, 'info');
   }
 
@@ -432,10 +501,18 @@
     if (s.viralBoost) { pv *= s.viralBoost; s.viralBoost = 0; }
     let viral = false;
     if (rnd(s) < pv) { V *= rr(s, vc.mul[0], vc.mul[1]); viral = true; }
-    const vid = { id: ++s.videoSeq, local: !!u.card.local, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
+    const vid = { id: ++s.videoSeq, ai: (u.how || []).includes('ai'), local: !!u.card.local, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
     s.videos.unshift(vid);
     if (s.videos.length > 60) s.videos.length = 60;
     s._lastQ = u.q;
+    const usedAI = (u.how || []).includes('ai');
+    s._lastAI = usedAI;
+    if (usedAI) {
+      const before = aiLevel(s); s.ai.made++; const after = aiLevel(s);
+      if (after > before) log(s, `🤖 AI 숙련 레벨 업: ${AI_LEVELS[after].name}`, 'good');
+      if (!s.ai.label && rnd(s) < 0.1) s._aiCaught = true;
+      if (s.ai.label) V *= 0.95;
+    }
     // 알고리즘 호감도 (1단계 임시 규칙: 품질·썸네일·업로드 주기)
     const f = CONFIG.favor;
     if (s.lastUploadGh !== null && s.gh - s.lastUploadGh <= f.gapDays * 24) s.streak++; else s.streak = 1;
@@ -475,6 +552,87 @@
     s.job = { partTime: true, left: CONFIG.partTime.hours };
     s.stamina -= CONFIG.partTime.stamina;
     return true;
+  }
+
+  // ───────── 라이브 방송 (구독자 3천부터) ─────────
+  function canLive(s) { return s.subs >= 3000 && canWork(s) && !s.live && s.stamina >= 25; }
+  function startLive(s) {
+    if (!canLive(s)) return false;
+    s.live = { left: 24 }; s.stamina -= 25; s.stats_live = (s.stats_live || 0) + 1;
+    return true;
+  }
+  function endLive(s) {
+    s.live = null;
+    const base = Math.pow(s.subs, 0.8) * 12 * (s.trait === 'charisma' ? 1.5 : 1) * (s.favor / 60);
+    if (rnd(s) < 0.1) { const loss = 8; s.favor = clamp(s.favor - loss, CONFIG.favor.min, CONFIG.favor.max); log(s, `📛 라이브 방송 사고… 호감도 -${loss}`, 'bad'); }
+    const inc = Math.round(base * rr(s, 0.7, 1.6));
+    s.money += inc; s.totalIncome += inc; s.favor = clamp(s.favor + 2, CONFIG.favor.min, CONFIG.favor.max);
+    s.subs += Math.round(s.subs * 0.004);
+    log(s, `🔴 라이브 종료! 슈퍼챗 +₩${fmt(inc)}`, 'good');
+  }
+  // ───────── 멤버십 (구독자 3천부터, 월 정산) ─────────
+  function memberIncome(s) {
+    if (s.subs < 3000) return 0;
+    const loyal = 0.006 * (s.trait === 'charisma' ? 1.15 : 1) * (hasStaff(s, 'community') ? 1.3 : 1) * (s.favor / 60);
+    return Math.round(s.subs * loyal * 4900 / 1000) * 1000;
+  }
+  // ───────── 굿즈 (구독자 5만부터) ─────────
+  const GOODS_COST = 3000000;
+  function canGoods(s) { return s.subs >= 50000 && !s.goods && s.money >= GOODS_COST; }
+  function makeGoods(s) {
+    if (!canGoods(s)) return false;
+    s.money -= GOODS_COST;
+    const demand = s.subs * 0.012 * (s.favor / 60) * rr(s, 0.6, 1.5);
+    s.goods = { left: 30 * 24, total: Math.round(demand * 18000), sold: 0 };
+    log(s, `👕 굿즈 제작 (₩${fmt(GOODS_COST)}) — 30일 동안 팔립니다`, 'good');
+    return true;
+  }
+  // ───────── 직원 채용 ─────────
+  function staffCap(s) { return (HOUSES[s.house] || {}).staff || 0; }
+  function refreshCandidates(s) {
+    const roles = Object.keys(STAFF_ROLES);
+    s.candidates = [0, 1, 2].map(() => {
+      const role = pick(s, roles), ab = Math.round(rr(s, 45, 92));
+      return { role, name: pick(s, NAMES), ability: ab, salary: Math.round(STAFF_ROLES[role].salary * (0.7 + ab / 150) / 1000) * 1000, aiAversion: Math.round(rr(s, 0, 80)) };
+    });
+    s.candRefreshGh = s.gh + 10 * 24;
+  }
+  function hire(s, idx) {
+    const c = s.candidates[idx];
+    if (!c || (s.staff || []).length >= staffCap(s)) return false;
+    if (s.staff.find(x => x.role === c.role)) return false;
+    const fee = c.salary * 0.5;
+    if (s.money < fee) return false;
+    s.money -= fee;
+    s.staff.push(Object.assign({ mood: 75, since: s.gh }, c));
+    s.candidates.splice(idx, 1);
+    log(s, `🤝 ${STAFF_ROLES[c.role].name} ${c.name} 입사! (능력 ${c.ability}, 월급 ₩${fmt(c.salary)})`, 'good');
+    return true;
+  }
+  function fire(s, idx) {
+    const st = s.staff[idx]; if (!st) return false;
+    s.staff.splice(idx, 1);
+    for (let i = 0; i < 3; i++) if (s.pipeline[i] === 'staff' && STAFF_ROLES[st.role].stage === i) s.pipeline[i] = 'self';
+    log(s, `${STAFF_ROLES[st.role].name} ${st.name} 퇴사`, 'info');
+    return true;
+  }
+  function setPipeline(s, i, how) {
+    if (how === 'staff' && !(s.staff || []).find(x => STAFF_ROLES[x.role].stage === i)) return false;
+    s.pipeline[i] = how; return true;
+  }
+  function setAIPlan(s, p) {
+    const P = AI_PLANS[p];
+    if (!P || p === s.ai.plan || s.subs < P.unlock) return false;
+    if (s.money < P.monthly) return false;
+    s.money -= P.monthly; s.ai.plan = p; s.ai.credits = Math.max(s.ai.credits, P.credits);
+    log(s, `🤖 AI ${P.name} 시작 (월 ₩${fmt(P.monthly)})`, 'good');
+    return true;
+  }
+  // 30일마다 나가는 돈과 들어오는 돈
+  function monthly(s) {
+    const H = HOUSES[s.house];
+    const sal = (s.staff || []).reduce((a, x) => a + x.salary, 0);
+    return { rent: H.rent, ai: AI_PLANS[s.ai.plan].monthly, salary: sal, members: memberIncome(s) };
   }
 
   function equipNext(s, k) { return EQUIP[k].tiers[s.equip[k] + 1] || null; }
@@ -547,6 +705,7 @@
   // ───────────────────────── 이벤트 ─────────────────────────
   function rollEvent(s) {
     const pool = ['sale', 'gift'];
+    if (s.ai.made > 0 && s.ai.plan > 0) pool.push('aiprice', 'aiupdate');
     const Rg = REGIONS[s.region];
     if (Rg) pool.push(...Rg.events, ...Rg.events);
     if (s.subs >= 300) pool.push('hate', 'hate');
@@ -558,11 +717,13 @@
       choices: [ { label: '가장 싼 다음 장비 바로 구매' }, { label: '지나친다' } ] };
     else if (id === 'gift') s.pendingEvent = { id, title: '구독자 선물', text: '구독자가 손편지와 간식을 보냈습니다.',
       choices: [ { label: '감사 커뮤니티 글 (호감도 +3)' }, { label: '고맙게 먹고 쉰다 (체력 회복)' } ] };
+    else if (id === 'aiprice') s.pendingEvent = { id, title: 'AI 구독료 인상', text: `AI 서비스가 다음 달부터 요금을 20% 올린다고 합니다.`, choices: [{ label: `이번 달 차액만 내고 유지 (₩${fmt(AI_PLANS[s.ai.plan].monthly * 0.2)})` }, { label: '한 단계 낮은 요금제로' }] };
+    else if (id === 'aiupdate') s.pendingEvent = { id, title: 'AI 모델 업데이트', text: '새 AI 모델이 나왔습니다. 프롬프트를 다시 익혀야 합니다.', choices: [{ label: '새 모델로 갈아탄다 (숙련 경험 -5, 호감도 +2)' }, { label: '익숙한 모델 유지' }] };
     else if (REGION_EVENTS[id]) s.pendingEvent = Object.assign({ id }, REGION_EVENTS[id].make(s));
     else if (id === 'sponsor') s.pendingEvent = { id, title: '소규모 협찬 문의', text: '앱 회사가 영상 중간 광고를 제안했습니다.',
       choices: [ { label: `수락 (₩${fmt(sponsorPay(s))}, 호감도 -4)` }, { label: '거절 (호감도 +1)' } ] };
   }
-  function sponsorPay(s) { return Math.round((50000 + s.subs * 40) * ((REGIONS[s.region] || {}).sponsorMul || 1) / 1000) * 1000; }
+  function sponsorPay(s) { return Math.round((50000 + s.subs * 40) * ((REGIONS[s.region] || {}).sponsorMul || 1) * (hasStaff(s, 'manager') ? 1.5 : 1) / 1000) * 1000; }
   function cheapestNext(s) {
     let best = null;
     for (const k in EQUIP) { const n = equipNext(s, k); if (n && (!best || n.price < best.price)) best = { k, price: n.price }; }
@@ -595,13 +756,24 @@
     const F = CONFIG.favor;
     const fav = d => { s.favor = clamp(s.favor + d, F.min, F.max); };
     if (REGION_EVENTS[e.id]) { REGION_EVENTS[e.id].resolve(s, ci, fav); return true; }
+    if (e.id === 'quit') {
+      const idx = s.staff.findIndex(x => x.name === e.staffName);
+      if (idx >= 0) {
+        if (ci === 0) { s.staff[idx].salary = Math.round(s.staff[idx].salary * 1.3 / 1000) * 1000; s.staff[idx].mood = 70; }
+        else { const R = STAFF_ROLES[s.staff[idx].role]; fire(s, idx); if (ci === 2 && R.stage != null) s.pipeline[R.stage] = 'ai'; }
+      }
+      return true;
+    }
+    if (e.id === 'aicaught') { fav(-20); s.ai.label = true; return true; }
+    if (e.id === 'aiprice') { if (ci === 1 && s.ai.plan > 0) { s.ai.plan--; log(s, `AI ${AI_PLANS[s.ai.plan].name}(으)로 낮췄습니다.`, 'info'); } else s.money -= Math.round(AI_PLANS[s.ai.plan].monthly * 0.2); return true; }
+    if (e.id === 'aiupdate') { if (ci === 0) { s.ai.made = Math.max(0, s.ai.made - 5); fav(2); } return true; }
     if (e.id === 'viral') {
       if (ci === 0) { s.nextVideoBoost = 1.8; fav(5); log(s, '후속편 준비! 다음 영상 트렌드 효과 ×1.8', 'good'); }
       else { const p = sponsorPay(s) * 2; s.money += p; log(s, `협찬 문의 수익 ₩${fmt(p)}`, 'good'); }
     } else if (e.id === 'hate') {
       if (ci === 0) { fav(-5); log(s, '사과 영상으로 수습했습니다.', 'info'); }
       else if (ci === 1) {
-        if (rnd(s) < 0.5) { const lost = Math.round(s.subs * 0.05); s.subs -= lost; fav(-10); log(s, `논란 확산… 구독자 -${fmt(lost)}, 호감도 -10`, 'bad'); }
+        if (rnd(s) < (hasStaff(s, 'community') ? 0.25 : 0.5)) { const lost = Math.round(s.subs * 0.05); s.subs -= lost; fav(-10); log(s, `논란 확산… 구독자 -${fmt(lost)}, 호감도 -10`, 'bad'); }
         else log(s, '다행히 조용히 지나갔습니다.', 'info');
       } else { s.money -= 500000; log(s, '법적 대응으로 정리했습니다. (₩500,000)', 'info'); }
     } else if (e.id === 'sale') {
@@ -628,6 +800,9 @@
     { id: 's1k', text: '구독자 1,000명', done: s => s.subs >= 1000, reward: 300000 },
     { id: 'money', text: '수익 창출 승인 (구독자 1천 + 시청 4천 시간)', done: s => s.monetized, reward: 300000 },
     { id: 'move1', text: '더 좋은 집으로 이사', done: s => HOUSES[s.house] && housesOf(s.region).indexOf(s.house) >= 1, reward: 200000 },
+    { id: 'ai1', text: 'AI로 영상 만들어 보기', done: s => s.ai && s.ai.made >= 1, reward: 100000 },
+    { id: 'live1', text: '첫 라이브 방송', done: s => s.stats_live >= 1, reward: 200000 },
+    { id: 'hire1', text: '첫 직원 채용', done: s => s.staff && s.staff.length >= 1, reward: 300000 },
     { id: 'v30', text: '영상 30편', done: s => (s.stats_videos || 0) >= 30, reward: 500000 },
     { id: 's5k', text: '구독자 5,000명', done: s => s.subs >= 5000, reward: 800000 },
     { id: 's10k', text: '구독자 10,000명 (1단계 목표)', done: s => s.subs >= 10000, reward: 2000000 },
@@ -683,7 +858,8 @@
       s.job.left -= h;
       if (s.job.left <= 0) { const pay = partPay(s); s.job = null; s.money += pay; log(s, `알바 끝 +₩${fmt(pay)}`, 'info'); }
     } else if (s.job) {
-      s.stamina = Math.min(ms, s.stamina + CONFIG.staminaRegen.working * h);
+      const selfNow = stageMethod(s, s.job.stage) === 'self' && !(s.job.stage === 2 && s.job.outsource);
+      s.stamina = Math.min(ms, s.stamina + (selfNow ? CONFIG.staminaRegen.working : CONFIG.staminaRegen.idle) * h);
       workHours(s, h);
     } else {
       s.stamina = Math.min(ms, s.stamina + CONFIG.staminaRegen.idle * h);
@@ -691,11 +867,42 @@
 
     // 이사
     if (s.moving && t1 >= s.moving.untilGh) finishMove(s);
+    // 라이브
+    if (s.live) { s.live.left -= h; if (s.live.left <= 0) endLive(s); }
+    // 굿즈 판매
+    if (s.goods) {
+      const k = Math.min(h, s.goods.left) / (30 * 24), inc = s.goods.total * k;
+      s.money += inc; s.totalIncome += inc; s.goods.sold += inc; s.goods.left -= h;
+      if (s.goods.left <= 0) { log(s, `👕 굿즈 판매 마감: 총 ₩${fmt(s.goods.sold)}`, 'good'); s.goods = null; }
+    }
+    // 직원 기분: 일하면 조금씩 지치고, 쉬면 회복. AI가 그 직원 일을 대신하면 AI 거부감만큼 떨어진다
+    if (s.staff && s.staff.length) {
+      for (const st of s.staff.slice()) {
+        const R = STAFF_ROLES[st.role];
+        const busy = s.job && !s.job.partTime && R.stage != null && s.job.how && s.job.how[R.stage] === 'staff';
+        const replaced = R.stage != null && s.pipeline[R.stage] === 'ai';
+        st.mood = clamp(st.mood + h / 24 * (busy ? -0.6 : 0.8) - (replaced ? h / 24 * st.aiAversion / 40 : 0), 0, 100);
+        if (st.mood < 20 && !s.pendingEvent) {
+          s.pendingEvent = { id: 'quit', staffName: st.name, title: '직원 퇴사 통보', text: `${R.name} ${st.name}이(가) 그만두겠다고 합니다. (기분 ${Math.round(st.mood)})`,
+            choices: [{ label: `월급 30% 인상하고 붙잡기 (₩${fmt(st.salary * 1.3)}/월)` }, { label: '보내 준다' }, { label: 'AI로 대체한다 (그 단계를 AI로)' }] };
+        }
+      }
+    }
+    if (staffCap(s) > 0 && t1 >= (s.candRefreshGh || 0)) refreshCandidates(s);
+    if (s._aiCaught && !s.pendingEvent) {
+      s._aiCaught = false;
+      s.pendingEvent = { id: 'aicaught', title: 'AI 표시 미이행 적발', text: 'AI로 만든 영상에 표시를 안 한 것이 들통났습니다.', choices: [{ label: '사과하고 앞으로 자동 표시 (호감도 -20)' }] };
+    }
     // 월세
     if (t1 >= s.nextRentGh) {
-      const rent = HOUSES[s.house].rent;
+      const mo = monthly(s), rent = mo.rent;
       s.nextRentGh += RENT_DAYS * 24;
-      if (rent > 0) { s.money -= rent; log(s, `🏠 월세 -₩${fmt(rent)} (${HOUSES[s.house].name})`, s.money < 0 ? 'bad' : 'info'); }
+      const out = mo.rent + mo.ai + mo.salary;
+      s.money += mo.members - out; s.totalIncome += mo.members;
+      if (out || mo.members) log(s, `📅 월 정산: 월세 ₩${fmt(mo.rent)} · AI ₩${fmt(mo.ai)} · 월급 ₩${fmt(mo.salary)}${mo.members ? ` · 멤버십 +₩${fmt(mo.members)}` : ''}`, s.money < 0 ? 'bad' : 'info');
+      s.ai.credits = Math.max(Math.min(s.ai.credits, AI_PLANS[s.ai.plan].credits * 2), AI_PLANS[s.ai.plan].credits);
+      if (s.money < 0) (s.staff || []).forEach(x => { x.mood -= 20; });
+      if (rent < 0) {}
       if (s.money < 0) {
         s.debtDays += RENT_DAYS;
         if (s.debtDays >= 60) {   // 두 달 밀리면 지역에서 가장 싼 집으로 강제 이사
@@ -781,6 +988,11 @@
   function migrate(s) {
     if (!s.region) { s.region = 'city'; s.house = 'oneroom'; s.moving = null; s.nextRentGh = s.gh + RENT_DAYS * 24; s.debtDays = 0; }
     for (const k in EQUIP) if (s.equip[k] == null) s.equip[k] = 0;
+    if (!s.ai) s.ai = { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true };
+    if (!s.pipeline) s.pipeline = ['self', 'self', 'self'];
+    if (!s.staff) s.staff = [];
+    if (!s.candidates) { s.candidates = []; s.candRefreshGh = 0; }
+    if (s.stamina == null || isNaN(s.stamina)) s.stamina = CONFIG.maxStaminaBase;
     s.v = 2;
     return s;
   }
@@ -799,6 +1011,8 @@
   root.Engine = {
     CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
     housesOf, effEquip, moveCost, canMove, moveHouse, partPay, migrate,
+    AI_PLANS, AI_LEVELS, STAFF_ROLES, GOODS_COST, aiLevel, aiCredits, videoQuality, stageQuality, stageHoursBy, setPipeline, setAIPlan,
+    canLive, startLive, memberIncome, canGoods, makeGoods, staffCap, refreshCandidates, hire, fire, monthly, hasStaff,
     newGame, advance, offline, tap, startVideo, upload, partTime, buyEquip, buySkill, buyRoutine,
     applyPack, resolveEvent, refreshTrends, bestThumbIdx, bestCardIdx, cheapestNext, equipNext, skillCost,
     baseQuality, maxStamina, convRate, cardViewRange, stageHours, canWork, effects, thumbLv, seoLv,
