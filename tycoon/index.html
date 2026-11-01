@@ -188,6 +188,7 @@
 const E = window.Engine, C = E.CONFIG, fmt = E.fmt;
 const BRANDS = JSON.parse(document.getElementById('brands').textContent);
 const SAVE_KEY = 'ytTycoon.v1';
+const NGP_KEY = 'ytTycoon.ngp';
 
 let S = null;            // 게임 상태
 let tab = null;            // 열린 아래 창 (null = 닫힘)
@@ -411,6 +412,22 @@ function renderTeam() {
     });
   }
   h += `</div>`;
+  // 전용 AI 모델
+  h += `<div class="card"><h3>🧠 전용 AI 모델</h3>`;
+  if (S.ai.ownModel) h += `<div class="mute small">완성. AI 티가 사라지고 AI 품질 +15, 크레딧이 들지 않습니다.</div>`;
+  else if (S.ai.training) h += `<div class="mute small">학습 중 · ${Math.ceil((S.ai.training.untilGh - S.gh) / 24)}일 남음</div>`;
+  else h += `<div class="item"><div><div class="mute small">AI 숙련 4레벨 + 스튜디오 플랜이면 내 채널 스타일 전용 모델을 만들 수 있습니다 (${30}일).</div></div><button class="ok" data-a="model" ${E.canTrainModel(S) ? '' : 'disabled'}>${won(E.MODEL_COST)}</button></div>`;
+  h += `</div>`;
+  // MCN
+  h += `<div class="card"><h3>🏢 MCN 회사</h3>`;
+  if (!S.mcn) h += `<div class="item"><div><div class="mute small">구독자 50만 + 직원 책상 6개 이상인 사옥급 집에서 설립할 수 있습니다. 소속 크리에이터 수익의 20%를 받습니다.</div></div><button class="ok" data-a="mcn" ${E.canFoundMCN(S) ? '' : 'disabled'}>${won(E.MCN_COST)}</button></div>`;
+  else {
+    h += `<div class="mute small">소속 ${S.mcn.creators.length}명 · 총 구독자 ${fmt(E.mcnTotalSubs(S))} · 상장 조건: 소속 10명 + 총 구독자 500만</div>`;
+    S.mcn.creators.forEach(c => { h += `<div class="item"><div><div class="name">${E.GENRES[c.genre].icon} ${c.name}</div><div class="mute small">구독자 ${fmt(c.subs)} · 성장성 ${c.potential} · 독립성향 ${c.independence}</div></div></div>`; });
+    h += `<div class="mute small" style="margin-top:8px">영입 후보 (${Math.max(0, Math.ceil((S.mcn.nextScoutGh - S.gh) / 24))}일 뒤 새 후보)</div>`;
+    S.mcn.scouts.forEach((c, i) => { h += `<div class="item"><div><div class="name">${E.GENRES[c.genre].icon} ${c.name}</div><div class="mute small">구독자 ${fmt(c.subs)} · 성장성 ${c.potential} · 독립성향 ${c.independence}</div></div><button class="ok" data-a="sign" data-i="${i}" ${S.money < c.fee ? 'disabled' : ''}>${won(c.fee)}</button></div>`; });
+  }
+  h += `</div>`;
   const mo = E.monthly(S);
   h += `<div class="card"><h3>📅 30일마다</h3><div class="grid2"><div class="kv"><div class="k">나가는 돈</div><div class="v">${won(mo.rent + mo.ai + mo.salary)}</div></div><div class="kv"><div class="k">멤버십 수입</div><div class="v">${won(mo.members)}</div></div></div>
     <div class="mute small" style="margin-top:6px">월세 ${won(mo.rent)} · AI ${won(mo.ai)} · 월급 ${won(mo.salary)}</div></div>`;
@@ -497,6 +514,14 @@ function canBuySomething() {
 // ───────── 모달 ─────────
 function renderModal() {
   if (!S) return renderStart();
+  if (S.ended) {
+    const d = S.ended, EN = E.ENDINGS[d.type];
+    return `<div class="modal-bg"><div class="modal" style="text-align:center"><div style="font-size:44px">${{ sale: '💼', mcn: '🏢', aistudio: '🧠' }[d.type]}</div>
+      <h2 style="font-size:22px">엔딩: ${EN.name}</h2><div class="mute">${EN.desc}</div>
+      <div class="grid2" style="margin-top:12px;text-align:left"><div class="kv"><div class="k">점수</div><div class="v">₩${fmt(d.score)}</div></div><div class="kv"><div class="k">구독자</div><div class="v">${fmt(d.subs)}</div></div>
+      <div class="kv"><div class="k">만든 영상</div><div class="v">${d.videos}편</div></div><div class="kv"><div class="k">걸린 시간</div><div class="v">${E.gameDate(d.gh)} · 실제 ${Math.round(d.realSec / 60)}분</div></div></div>
+      <div class="choices"><button class="primary" data-a="ngp">🔁 뉴게임+ (AI 숙련 절반, 시작 자금 1.5배)</button></div></div></div>`;
+  }
   if (S.pendingEvent) {
     const e = S.pendingEvent;
     return `<div class="modal-bg"><div class="modal"><h2>${e.title}</h2><div>${e.text}</div><div class="choices">${e.choices.map((c, i) => `<button data-a="event" data-i="${i}">${c.label}</button>`).join('')}</div></div></div>`;
@@ -533,7 +558,8 @@ function startPreview() {
 function renderStart() {
   const st = startSel.step || 0;
   const dots = `<div class="steps">${[0, 1, 2, 3, 4].map(i => `<i class="${i <= st ? 'on' : ''}"></i>`).join('')}</div>`;
-  const logo = `<div class="logo"><div class="t1">YOUTUBE CHANNEL</div><div class="t2">유튜브 채널<br>운영 타이쿤</div><div class="t3">작은 방 한 칸에서 시작해 MCN 회사까지</div></div>`;
+  const ngp = JSON.parse(localStorage.getItem(NGP_KEY) || 'null');
+  const logo = `<div class="logo">${ngp ? `<div class="t1" style="color:#7ee0ff">NEW GAME+ ${ngp.count}회차</div>` : ''}<div class="t1">YOUTUBE CHANNEL</div><div class="t2">유튜브 채널<br>운영 타이쿤</div><div class="t3">작은 방 한 칸에서 시작해 MCN 회사까지</div></div>`;
   let p = '';
   if (st === 0) {
     p = `<div class="mute small" style="text-align:center;margin-bottom:12px">어디서, 어떤 집에서, 어떤 크리에이터로 시작할지 고르세요.<br>지역마다 집값·주제·사건이 다릅니다.</div>
@@ -689,6 +715,18 @@ function act(a, d) {
     case 'fire': E.fire(S, i); break;
     case 'live': if (E.startLive(S)) tab = null; break;
     case 'goods': E.makeGoods(S); break;
+    case 'model': E.trainModel(S); break;
+    case 'mcn': E.foundMCN(S); break;
+    case 'sign': E.signCreator(S, i); break;
+    case 'ngp': {
+      const prev = JSON.parse(localStorage.getItem(NGP_KEY) || '{}');
+      const ngp = { aiMade: S.ai.made, count: (prev.count || 0) + 1, endings: (prev.endings || []).concat([S.ended.type]) };
+      localStorage.setItem(NGP_KEY, JSON.stringify(ngp)); localStorage.removeItem(SAVE_KEY);
+      S = null; modal = null; startSel = { trait: 'planner', pack: 'free', channel: '', step: 1, region: 'city', house: 'gosiwon', genre: 'info' };
+      lastMainHtml = lastTopHtml = lastTabsHtml = lastStatusHtml = ''; tab = null;
+      ['status', 'main', 'top', 'tabs'].forEach(id => { document.getElementById(id).innerHTML = ''; });
+      break;
+    }
     case 'move': if (E.moveHouse(S, k)) { tab = null; if (window.MoveFx) MoveFx.play(S); } break;
     case 'skill': E.buySkill(S, k); break;
     case 'pack': modal = { type: 'confirmPack', id: k }; break;
@@ -705,7 +743,8 @@ function act(a, d) {
     case 'seltrait': startSel.trait = k; break;
     case 'begin': {
       const nm = (startSel.channel || '').trim() || '나의 정보 채널';
-      S = E.newGame({ channel: nm, genre: startSel.genre || 'info', trait: startSel.trait, pack: startSel.pack, region: startSel.region, house: startSel.house });
+      const ngp = JSON.parse(localStorage.getItem(NGP_KEY) || 'null');
+      S = E.newGame({ ngp, channel: nm, genre: startSel.genre || 'info', trait: startSel.trait, pack: startSel.pack, region: startSel.region, house: startSel.house });
       Scene.setPreview(null); previewState = null; document.body.classList.remove('starting');
       tab = null; save(); break;
     }

@@ -204,11 +204,11 @@
   ];
   // 숙련 레벨: need=AI로 만든 영상 수, plan=필요 구독 단계. time=AI 단계 시간 배율, cr=단계별 크레딧, tee=AI 티 감점(촬영을 AI로 할 때)
   const AI_LEVELS = [
-    { name: '초보', need: 0, time: 0.55, q: 0, cr: [3, 6, 3], tee: 15 },
-    { name: '프롬프트 감 잡음', need: 10, time: 0.42, q: 5, cr: [2, 4, 2], tee: 12 },
-    { name: '워크플로 정착', need: 30, time: 0.3, q: 10, cr: [1, 3, 1], tee: 8 },
-    { name: '자동화 설계자', need: 80, plan: 2, time: 0.15, q: 15, cr: [1, 1, 1], tee: 4 },
-    { name: 'AI 디렉터', need: 200, plan: 3, time: 0.06, q: 20, cr: [0.5, 1, 0.5], tee: 0 },
+    { name: '초보', need: 0, time: 0.6, q: 0, cr: [3, 6, 3], tee: 15 },
+    { name: '프롬프트 감 잡음', need: 15, time: 0.5, q: 5, cr: [2, 4, 2], tee: 12 },
+    { name: '워크플로 정착', need: 50, time: 0.4, q: 10, cr: [1, 3, 1], tee: 8 },
+    { name: '자동화 설계자', need: 150, plan: 2, time: 0.3, q: 15, cr: [1, 1, 1], tee: 4 },
+    { name: 'AI 디렉터', need: 400, plan: 3, time: 0.2, q: 20, cr: [0.5, 1, 0.5], tee: 0 },
   ];
   // ───────────────────────── 직원 ─────────────────────────
   const STAFF_ROLES = {
@@ -295,6 +295,9 @@
       quests: {}, log: [], realSec: 0, _toasts: [],
     };
     if (opt.rng) s.rng = opt.rng;
+    if (opt.ngp) {   // 뉴게임+: 지난 판 AI 숙련 절반, 시작 자금 1.5배
+      s.ai.made = Math.floor((opt.ngp.aiMade || 0) / 2); s.money = Math.round(s.money * 1.5); s.ngp = (opt.ngp.count || 0) + 1;
+    }
     s.nextEventGh = rr(s, CONFIG.events.everyDays[0], CONFIG.events.everyDays[1]) * 24;
     refreshTrends(s);
     if (opt.pack && opt.pack !== 'free') applyPack(s, opt.pack);
@@ -356,13 +359,13 @@
     return h;
   }
   function stageHours(s, i) { return stageHoursBy(s, i, stageMethod(s, i)); }
-  function aiCredits(s, i) { return AI_LEVELS[aiLevel(s)].cr[i] * (hasStaff(s, 'ai_op') ? 0.7 : 1); }
+  function aiCredits(s, i) { return s.ai.ownModel ? 0 : AI_LEVELS[aiLevel(s)].cr[i] * (hasStaff(s, 'ai_op') ? 0.7 : 1); }
   // 단계별 품질 → 영상 품질 (기획 30%, 촬영 40%, 편집 30%)
   function stageQuality(s, i, how) {
     if (how === 'ai') {
       const lv = aiLevel(s), P = AI_PLANS[s.ai.plan];
-      let q = Math.min(P.cap, 42 + AI_LEVELS[lv].q + effEquip(s).gpu * 2);
-      if (i === 1) q -= AI_LEVELS[lv].tee * G(s).tee;
+      let q = Math.min(P.cap + (s.ai.ownModel ? 8 : 0), 42 + AI_LEVELS[lv].q + effEquip(s).gpu * 2 + (s.ai.ownModel ? 15 : 0));
+      if (i === 1 && !s.ai.ownModel) q -= AI_LEVELS[lv].tee * G(s).tee;
       return q;
     }
     if (how === 'staff') { const st = (s.staff || []).find(x => STAFF_ROLES[x.role].stage === i); return clamp(30 + (st ? st.ability : 50) * 0.45 + effects(s).q * 0.7, 0, CONFIG.qualityMax); }
@@ -389,6 +392,7 @@
     if (s.trait === 'charisma') r *= 1.2;
     if (hasStaff(s, 'community')) r *= 1.05;
     r *= G(s).conv;
+    r /= 1 + s.subs / 300000;      // 큰 채널일수록 새 구독 전환이 줄어든다
     if (s._lastAI && aiLevel(s) < 4) r *= 0.88;   // AI 영상은 팬 충성도가 조금 낮다
     return r;
   }
@@ -515,7 +519,12 @@
     if (s.gh > u.card.expiresGh) T *= CONFIG.trends.staleMul;
     if (s.nextVideoBoost) { T *= s.nextVideoBoost; s.nextVideoBoost = null; }
     const R = rr(s, 0.6, 1.6);
-    let V = expectedViews(s, T, u.q) * R * th.real;
+    // 시청자 피로도: 최근 하루 평균 업로드가 0.5편을 넘으면 한 편당 조회수가 줄어든다
+    s.upRate = (s.upRate || 0) + 1;
+    const fatigue = 1 / (1 + Math.max(0, s.upRate / 7 - 0.5) * 1.4);
+    let V = expectedViews(s, T, u.q) * R * th.real * fatigue;
+    if (fatigue < 0.8 && !s._fatigueWarned) { s._fatigueWarned = true; log(s, '😮‍💨 시청자 피로도: 영상을 너무 자주 올려 한 편당 조회수가 줄고 있습니다.', 'bad'); }
+    if (fatigue > 0.95) s._fatigueWarned = false;
     // 바이럴
     const vc = CONFIG.viral;
     let pv = u.q >= 80 ? vc.q80 : u.q >= 70 ? vc.q70 : vc.base;
@@ -574,6 +583,60 @@
     s.job = { partTime: true, left: CONFIG.partTime.hours };
     s.stamina -= CONFIG.partTime.stamina;
     return true;
+  }
+
+  // ───────── 후반: MCN, 자체 AI 모델, 엔딩 ─────────
+  const MCN_COST = 50000000, MODEL_COST = 80000000, MODEL_DAYS = 30;
+  const CREATOR_NAMES = ['먹보곰', '게임하는 토끼', '노래하는 별', '꿀팁박사', '여행가 J', '운동왕 민', '그림쟁이', '요리하는 아빠', '고양이 집사', '과학쌤', '캠핑러버', '댄스크루 A'];
+  function canFoundMCN(s) { return !s.mcn && s.subs >= 500000 && staffCap(s) >= 6 && s.money >= MCN_COST; }
+  function foundMCN(s) {
+    if (!canFoundMCN(s)) return false;
+    s.money -= MCN_COST; s.mcn = { creators: [], nextScoutGh: s.gh, scouts: [] };
+    scoutCreators(s);
+    log(s, '🏢 MCN 회사 설립! 소속 크리에이터를 영입하세요.', 'good');
+    return true;
+  }
+  function scoutCreators(s) {
+    s.mcn.scouts = [0, 1, 2].map(() => {
+      const g = pick(s, Object.keys(GENRES)), subs = Math.round(rr(s, 20000, 200000));
+      return { name: pick(s, CREATOR_NAMES), genre: g, subs, potential: Math.round(rr(s, 40, 95)), independence: Math.round(rr(s, 10, 90)), fee: Math.round(subs * 60 / 10000) * 10000 };
+    });
+    s.mcn.nextScoutGh = s.gh + 15 * 24;
+  }
+  function signCreator(s, i) {
+    const c = s.mcn && s.mcn.scouts[i];
+    if (!c || s.money < c.fee) return false;
+    s.money -= c.fee; s.mcn.creators.push(Object.assign({ support: 1, since: s.gh }, c)); s.mcn.scouts.splice(i, 1);
+    log(s, `🤝 ${GENRES[c.genre].icon} ${c.name} 영입! (구독자 ${fmt(c.subs)})`, 'good');
+    return true;
+  }
+  function mcnTotalSubs(s) { return s.subs + (s.mcn ? s.mcn.creators.reduce((a, c) => a + c.subs, 0) : 0); }
+  function canTrainModel(s) { return !s.ai.ownModel && !s.ai.training && aiLevel(s) >= 4 && s.ai.plan >= 3 && s.money >= MODEL_COST; }
+  function trainModel(s) {
+    if (!canTrainModel(s)) return false;
+    s.money -= MODEL_COST; s.ai.training = { untilGh: s.gh + MODEL_DAYS * 24 };
+    log(s, `🧠 내 채널 전용 AI 모델 학습 시작 (${MODEL_DAYS}일)`, 'good');
+    return true;
+  }
+  const ENDINGS = {
+    sale: { name: '채널 매각', desc: '채널을 팔고 다음 인생으로.' },
+    mcn: { name: 'MCN 상장', desc: '소속 크리에이터 10명, 총 구독자 500만. 회사가 상장했다.' },
+    aistudio: { name: 'AI 스튜디오', desc: '자체 AI 모델로 움직이는 콘텐츠 공장. 구독자 300만.' },
+  };
+  function endGame(s, type, score) {
+    s.ended = { type, score: Math.round(score), gh: s.gh, subs: s.subs, videos: s.stats_videos || 0, income: s.totalIncome, realSec: s.realSec };
+    log(s, `🏁 엔딩: ${ENDINGS[type].name}`, 'good');
+  }
+  function checkEndings(s) {
+    if (s.ended) return;
+    if (s.mcn && s.mcn.creators.length >= 10 && mcnTotalSubs(s) >= 5000000) endGame(s, 'mcn', mcnTotalSubs(s) * 10 + s.money);
+    else if (s.ai.ownModel && s.subs >= 3000000 && s.ai.made >= 300) endGame(s, 'aistudio', s.subs * 15 + s.money);
+    else if (s.subs >= 300000 && !s.pendingEvent && s.gh >= (s.saleOfferGh || 0)) {
+      s.saleOfferGh = s.gh + 120 * 24;
+      const price = Math.round((s.subs * 4000 + s.totalIncome * 0.5) / 1e6) * 1e6;
+      s.pendingEvent = { id: 'saleoffer', price, title: '채널 매각 제안', text: `대형 미디어 회사가 채널을 ₩${fmt(price)}에 사겠다고 합니다. 받으면 게임이 끝납니다.`,
+        choices: [{ label: `매각한다 (엔딩, 점수 ₩${fmt(price)})` }, { label: '거절하고 계속 키운다' }] };
+    }
   }
 
   // ───────── 라이브 방송 (구독자 3천부터) ─────────
@@ -740,7 +803,7 @@
       choices: [ { label: '가장 싼 다음 장비 바로 구매' }, { label: '지나친다' } ] };
     else if (id === 'gift') s.pendingEvent = { id, title: '구독자 선물', text: '구독자가 손편지와 간식을 보냈습니다.',
       choices: [ { label: '감사 커뮤니티 글 (호감도 +3)' }, { label: '고맙게 먹고 쉰다 (체력 회복)' } ] };
-    else if (id === 'copyright') s.pendingEvent = { id, title: '저작권 경고', text: '최근 영상의 배경음악(또는 생성물)이 저작권 신고를 받았습니다.', choices: [{ label: '영상 비공개 (그 영상 조회수 중단)' }, { label: '수익을 원작자에게 양도 (₩' + fmt(Math.max(30000, s.subs * 8)) + ')' }, { label: '이의 제기 (40% 승리, 지면 호감도 -10)' }] };
+    else if (id === 'copyright') s.pendingEvent = { id, title: '저작권 경고', text: '최근 영상의 배경음악(또는 생성물)이 저작권 신고를 받았습니다.', choices: [{ label: '영상 비공개 (그 영상 조회수 중단)' }, { label: '수익을 원작자에게 양도 (₩' + fmt(Math.min(5000000, Math.max(30000, s.subs * 8))) + ')' }, { label: '이의 제기 (40% 승리, 지면 호감도 -10)' }] };
     else if (id === 'aiprice') s.pendingEvent = { id, title: 'AI 구독료 인상', text: `AI 서비스가 다음 달부터 요금을 20% 올린다고 합니다.`, choices: [{ label: `이번 달 차액만 내고 유지 (₩${fmt(AI_PLANS[s.ai.plan].monthly * 0.2)})` }, { label: '한 단계 낮은 요금제로' }] };
     else if (id === 'aiupdate') s.pendingEvent = { id, title: 'AI 모델 업데이트', text: '새 AI 모델이 나왔습니다. 프롬프트를 다시 익혀야 합니다.', choices: [{ label: '새 모델로 갈아탄다 (숙련 경험 -5, 호감도 +2)' }, { label: '익숙한 모델 유지' }] };
     else if (REGION_EVENTS[id]) s.pendingEvent = Object.assign({ id }, REGION_EVENTS[id].make(s));
@@ -783,15 +846,24 @@
     if (e.id === 'quit') {
       const idx = s.staff.findIndex(x => x.name === e.staffName);
       if (idx >= 0) {
-        if (ci === 0) { s.staff[idx].salary = Math.round(s.staff[idx].salary * 1.3 / 1000) * 1000; s.staff[idx].mood = 70; }
+        if (ci === 0) {
+          const st = s.staff[idx], cap = STAFF_ROLES[st.role].salary * 3;
+          st.salary = Math.min(cap, Math.round(st.salary * 1.3 / 1000) * 1000); st.mood = 85; st.aiAversion = Math.round(st.aiAversion * 0.6);
+        }
         else { const R = STAFF_ROLES[s.staff[idx].role]; fire(s, idx); if (ci === 2 && R.stage != null) s.pipeline[R.stage] = 'ai'; }
       }
       return true;
     }
     if (e.id === 'aicaught') { fav(-20); s.ai.label = true; return true; }
+    if (e.id === 'saleoffer') { if (ci === 0) endGame(s, 'sale', e.price); return true; }
+    if (e.id === 'indep') {
+      const idx = s.mcn.creators.findIndex(c => c.name === e.cname);
+      if (idx >= 0) { const c = s.mcn.creators[idx]; if (ci === 0) c.support = 0.9; else if (ci === 1) { s.mcn.creators.splice(idx, 1); log(s, `${c.name} 독립`, 'info'); } else fav(-8); }
+      return true;
+    }
     if (e.id === 'copyright') {
       if (ci === 0) { const v = s.videos[0]; if (v) { v.V = v.views; v.tailAdded = true; } log(s, '영상을 비공개로 돌렸습니다.', 'info'); }
-      else if (ci === 1) s.money -= Math.max(30000, s.subs * 8);
+      else if (ci === 1) s.money -= Math.min(5000000, Math.max(30000, s.subs * 8));
       else if (rnd(s) < 0.4) log(s, '이의 제기 승리!', 'good'); else { fav(-10); log(s, '이의 제기 실패… 호감도 -10', 'bad'); }
       return true;
     }
@@ -836,7 +908,10 @@
     { id: 'v30', text: '영상 30편', done: s => (s.stats_videos || 0) >= 30, reward: 500000 },
     { id: 's5k', text: '구독자 5,000명', done: s => s.subs >= 5000, reward: 800000 },
     { id: 's10k', text: '구독자 10,000명 (1단계 목표)', done: s => s.subs >= 10000, reward: 2000000 },
+    { id: 's50k', text: '구독자 5만', done: s => s.subs >= 50000, reward: 5000000 },
     { id: 's100k', text: '구독자 10만 — 실버 버튼', done: s => s.subs >= 100000, reward: 10000000 },
+    { id: 's500k', text: '구독자 50만 — MCN 설립 가능', done: s => s.subs >= 500000, reward: 30000000 },
+    { id: 's1m', text: '구독자 100만 — 골드 버튼', done: s => s.subs >= 1000000, reward: 100000000 },
   ];
   function checkQuests(s) {
     for (const q of QUESTS) {
@@ -867,7 +942,7 @@
   function advance(s, dt, realDt) {
     s.realSec += realDt || 0;
     while (dt > 1e-9) {
-      if (s.pendingEvent) return;       // 선택지가 뜨면 시간 정지
+      if (s.pendingEvent || s.ended) return;       // 선택지가 뜨거나 엔딩이면 시간 정지
       const h = Math.min(dt, 1);
       stepHour(s, h);
       dt -= h;
@@ -914,11 +989,27 @@
         st.mood = clamp(st.mood + h / 24 * (busy ? -0.6 : 0.8) - (replaced ? h / 24 * st.aiAversion / 40 : 0), 0, 100);
         if (st.mood < 20 && !s.pendingEvent) {
           s.pendingEvent = { id: 'quit', staffName: st.name, title: '직원 퇴사 통보', text: `${R.name} ${st.name}이(가) 그만두겠다고 합니다. (기분 ${Math.round(st.mood)})`,
-            choices: [{ label: `월급 30% 인상하고 붙잡기 (₩${fmt(st.salary * 1.3)}/월)` }, { label: '보내 준다' }, { label: 'AI로 대체한다 (그 단계를 AI로)' }] };
+            choices: [{ label: `월급 인상하고 붙잡기 (₩${fmt(Math.min(STAFF_ROLES[st.role].salary * 3, st.salary * 1.3))}/월, AI 거부감 완화)` }, { label: '보내 준다' }, { label: 'AI로 대체한다 (그 단계를 AI로)' }] };
         }
       }
     }
     if (staffCap(s) > 0 && t1 >= (s.candRefreshGh || 0)) refreshCandidates(s);
+    if (s.mcn) {
+      for (const c of s.mcn.creators) {
+        const g = (0.0025 + c.potential / 100 * 0.004) * c.support * (h / 24);
+        c.subs += c.subs * g;
+        const inc = c.subs * 0.4 * (h / 24) * 0.2;      // 소속 크리에이터 수익의 20%
+        s.money += inc; s.totalIncome += inc;
+        if (c.subs > s.subs && !c.askedIndep && !s.pendingEvent && rnd(s) < 0.02 * c.independence / 50) {
+          c.askedIndep = true;
+          s.pendingEvent = { id: 'indep', cname: c.name, title: '크리에이터 독립 요구', text: `${c.name}의 구독자(${fmt(c.subs)})가 대표님 채널보다 많아졌습니다. 독립하겠다고 합니다.`,
+            choices: [{ label: '수익 배분 재협상 (내 몫 20%→12%, 남는다)' }, { label: '보내 준다' }, { label: '계약을 근거로 붙잡는다 (호감도 -8)' }] };
+        }
+      }
+      if (t1 >= s.mcn.nextScoutGh) scoutCreators(s);
+    }
+    if (s.ai.training && t1 >= s.ai.training.untilGh) { s.ai.training = null; s.ai.ownModel = true; log(s, '🧠 전용 AI 모델 완성! AI 티 소멸, AI 품질 +15, 크레딧 불필요', 'good'); }
+    checkEndings(s);
     if (s._aiCaught && !s.pendingEvent) {
       s._aiCaught = false;
       s.pendingEvent = { id: 'aicaught', title: 'AI 표시 미이행 적발', text: 'AI로 만든 영상에 표시를 안 한 것이 들통났습니다.', choices: [{ label: '사과하고 앞으로 자동 표시 (호감도 -20)' }] };
@@ -973,6 +1064,7 @@
       s.tailRate *= Math.exp(-h / (CONFIG.tailTauDays * 24));
     }
 
+    s.upRate = (s.upRate || 0) * Math.exp(-h / (7 * 24));
     // 호감도: 업로드 공백 페널티
     if (s.lastUploadGh !== null && t1 - s.lastUploadGh > CONFIG.favor.gapDays * 24)
       s.favor = clamp(s.favor - CONFIG.favor.gapPerDay * h / 24, CONFIG.favor.min, CONFIG.favor.max);
@@ -1043,6 +1135,7 @@
     GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
     housesOf, effEquip, moveCost, canMove, moveHouse, partPay, migrate,
     AI_PLANS, AI_LEVELS, STAFF_ROLES, GOODS_COST, aiLevel, aiCredits, videoQuality, stageQuality, stageHoursBy, setPipeline, setAIPlan,
+    ENDINGS, MCN_COST, MODEL_COST, canFoundMCN, foundMCN, scoutCreators, signCreator, mcnTotalSubs, canTrainModel, trainModel,
     canLive, startLive, memberIncome, canGoods, makeGoods, staffCap, refreshCandidates, hire, fire, monthly, hasStaff,
     newGame, advance, offline, tap, startVideo, upload, partTime, buyEquip, buySkill, buyRoutine,
     applyPack, resolveEvent, refreshTrends, bestThumbIdx, bestCardIdx, cheapestNext, equipNext, skillCost,
