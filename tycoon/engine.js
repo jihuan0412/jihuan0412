@@ -380,7 +380,7 @@
       pendingEvent: null, nextVideoBoost: null,
       purchases: {}, cashSpent: 0,
       quests: {}, log: [], realSec: 0, _toasts: [],
-      life: newLife(),
+      life: newLife(), mats: [],
     };
     if (opt.rng) s.rng = opt.rng;
     if (opt.ngp) {   // 뉴게임+: 지난 판 AI 숙련 절반, 시작 자금 1.5배
@@ -393,7 +393,7 @@
     return s;
   }
 
-  function newLife() { return { hunger: 80, clean: 85, mood: 70, act: null, delivery: null, fullUntil: 0, svc: {} }; }
+  function newLife() { return { hunger: 80, clean: 85, mood: 70, act: null, delivery: null, fullUntil: 0, svc: {}, pantry: 0, visited: {} }; }
 
   // ───────────────────────── 파생 수치 ─────────────────────────
   function maxStamina(s) { return CONFIG.maxStaminaBase + s.skills.fitness * 10; }
@@ -538,9 +538,9 @@
   // ───────────────────────── 행동 ─────────────────────────
   function canWork(s) { return !s.job && !s.uploadReady && s.gh >= s.burnoutUntil && !s.pendingEvent && !s.moving && !s.live; }
 
-  function startVideo(s, cardIdx) {
+  function startVideo(s, cardIdx, fromMat) {
     if (!canWork(s)) return false;
-    const card = s.trends[cardIdx];
+    const card = fromMat ? (s.mats || [])[cardIdx] : s.trends[cardIdx];
     if (!card) return false;
     const how = (s.pipeline || ['self', 'self', 'self']).slice();
     for (let i = 0; i < 3; i++) {
@@ -552,7 +552,7 @@
     const outsource = how[2] === 'self' && s.routine.outsource && s.money >= CONFIG.outsourceEdit.cost;
     if (outsource) s.money -= CONFIG.outsourceEdit.cost;
     s.job = { card, stage: 0, progress: 0, outsource, how };
-    s.trends.splice(cardIdx, 1, makeCard(s));
+    if (fromMat) s.mats.splice(cardIdx, 1); else s.trends.splice(cardIdx, 1, makeCard(s));
     s.resting = false;
     return true;
   }
@@ -606,7 +606,7 @@
   function finishJob(s) {
     const j = s.job;
     s.job = null;
-    s.uploadReady = { card: j.card, how: j.how, q: clamp(videoQuality(s, j.how) + rr(s, -CONFIG.qualityRand, CONFIG.qualityRand), 0, 100), thumbs: makeThumbs(s) };
+    s.uploadReady = { card: j.card, how: j.how, q: clamp(videoQuality(s, j.how) + (j.card.q || 0) + (j.bonusQ || 0) + rr(s, -CONFIG.qualityRand, CONFIG.qualityRand), 0, 100), thumbs: makeThumbs(s) };
     if (!s.routine.on) log(s, `「${j.card.topic}」 편집 완료 — 썸네일을 골라 업로드하세요.`, 'info');
   }
 
@@ -631,7 +631,7 @@
     pv *= G(s).viral;
     let viral = false;
     if (rnd(s) < pv) { V *= rr(s, vc.mul[0], vc.mul[1]); viral = true; }
-    const vid = { avd: CONFIG.watchMinBase + CONFIG.watchMinPerQ * u.q, id: ++s.videoSeq, ai: (u.how || []).includes('ai'), local: !!u.card.local, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
+    const vid = { avd: CONFIG.watchMinBase + CONFIG.watchMinPerQ * u.q, id: ++s.videoSeq, ai: (u.how || []).includes('ai'), local: !!u.card.local, mat: !!u.card.mat, topic: u.card.topic, q: u.q, ctr: th.real, V, views: 0, uploadGh: s.gh, income: 0, viral };
     s.videos.unshift(vid);
     if (s.videos.length > 60) s.videos.length = 60;
     s._lastQ = u.q;
@@ -677,6 +677,13 @@
     return b;
   }
 
+  // 자동 루틴·봇용: 트렌드 카드와 소재 카드 중 더 나은 것. 소재는 품질 보너스를 조회수 기대치로 환산해 비교
+  function bestPick(s) {
+    const ti = bestCardIdx(s), tc = s.trends[ti], tv = tc ? (tc.range[0] + tc.range[1]) / 2 * ((tc.expiresGh - s.gh) / 24 < 4 ? CONFIG.trends.staleMul : 1) : -1;
+    let mi = -1, mv = -1;
+    (s.mats || []).forEach((m, i) => { const v = (m.range[0] + m.range[1]) / 2 * (1 + m.q / 50); if (v > mv) { mv = v; mi = i; } });
+    return mi >= 0 && mv >= tv ? { i: mi, mat: true } : { i: ti, mat: false };
+  }
   function partPay(s) { return Math.round(CONFIG.partTime.pay * ((REGIONS[s.region] || {}).partPay || 1) / 1000) * 1000; }
   function partTime(s) {
     if (!canWork(s) || s.stamina < CONFIG.partTime.stamina) return false;
@@ -983,7 +990,7 @@
   function lifeScore(s) { const L = s.life; return L ? 0.4 * L.hunger + 0.3 * L.clean + 0.3 * L.mood : 70; }
   function lifeTier(s) { const sc = lifeScore(s); return LIFE.tiers.find(t => sc >= t.min); }
   function lifeQ(s) { if (!s.life) return 0; return lifeTier(s).q + (s.gh < (s.life.fullUntil || 0) ? 1 : 0); }
-  function lifeCost(s, id) { const A = LIFE_ACTS[id], m = (REGIONS[s.region].life || {})[id] || 1; return Math.round(A.cost * m / 100) * 100; }
+  function lifeCost(s, id) { if (id === 'cook' && s.life && s.life.pantry > 0) return 0; const A = LIFE_ACTS[id], m = (REGIONS[s.region].life || {})[id] || 1; return Math.round(A.cost * m / 100) * 100; }
   function lifeBusy(s) { return !!(s.life && s.life.act); }
   function canLifeAct(s, id) {
     const A = LIFE_ACTS[id];
@@ -996,14 +1003,16 @@
     if (c > 0 && s.money < c) return { ok: false, why: '돈이 모자라요' };
     return { ok: true };
   }
-  function lifeAct(s, id, quiet) {
+  function lifeAct(s, id, quiet, score) {
     if (!canLifeAct(s, id).ok) return false;
     const A = LIFE_ACTS[id], c = lifeCost(s, id);
+    const usePantry = id === 'cook' && s.life.pantry > 0;
+    if (usePantry) s.life.pantry--;
     s.money -= c;
     if (!quiet) s.resting = false;   // 직접 누르면 쉬던 걸 멈추고, 자동으로 챙길 때는 쉬는 중에도 그대로
     if (A.wait) { s.life.delivery = { id, at: s.gh + A.wait * (REGIONS[s.region].deliveryWait || 1) }; if (!quiet) log(s, `${A.icon} 배달 주문! 곧 도착해요`, 'info'); return true; }
-    s.life.act = { id, left: A.hours, total: A.hours };
-    if (!quiet) log(s, `${A.icon} ${A.name}${c ? ` (₩${fmt(c)})` : ''}`, 'info');
+    s.life.act = { id, left: A.hours, total: A.hours, pantry: usePantry, score: score == null ? null : clamp(score, 0, 1) };
+    if (!quiet) log(s, `${A.icon} ${A.name}${usePantry ? ' (식재료 사용)' : c ? ` (₩${fmt(c)})` : ''}`, 'info');
     return true;
   }
   function applyLife(s, A) {
@@ -1026,6 +1035,7 @@
 
   function lifeStep(s, h) {
     const L = s.life; if (!L) return;
+    expireMats(s);
     const sv = L.svc, D = LIFE.decay;
     const working = s.job && !s.job.partTime && stageMethod(s, s.job.stage) === 'self';
     L.hunger = clamp(L.hunger - D.hunger * h * (working ? 1.15 : 1), 0, 100);
@@ -1038,7 +1048,7 @@
     // 하던 생활 행동
     if (L.act) {
       L.act.left -= h;
-      if (L.act.left <= 0) { const A = LIFE_ACTS[L.act.id]; L.act = null; applyLife(s, A); }
+      if (L.act.left <= 0) { const a = L.act; L.act = null; if (a.id === 'out') finishOut(s, a); else { applyLife(s, LIFE_ACTS[a.id]); if (a.id === 'cook') finishCook(s, a); } }
     }
     if (L.delivery && s.gh >= L.delivery.at) { const A = LIFE_ACTS[L.delivery.id]; L.delivery = null; applyLife(s, A); L.courier = (L.courier || 0) + 1; log(s, '🛵 배달 왔어요! 맛있게 먹었습니다', 'good'); }
     // 자동으로 챙기기 (방치해도 멈추지 않게)
@@ -1049,6 +1059,126 @@
       else if (!L.act && L.hunger < 10) { applyLife(s, { hunger: 25, mood: -2 }); }   // 돈이 없으면 집에 있는 걸로 대충 때운다
     }
     if (L.clean < LIFE.auto.clean && !L.act && canLifeAct(s, 'shower').ok) lifeAct(s, 'shower', true);
+  }
+
+  // ───────────────────────── 동네 나가기 · 소재 카드 · 손맛 게임 (설계 추가안 2차) ─────────────────────────
+  // 나가면 기분이 오르고 '소재 카드'를 얻는다. 소재로 만든 영상은 경쟁이 없고 품질 보너스.
+  // 식재료(텃밭·시장·낚시)는 집밥에 쓰고, 식재료로 차린 집밥은 다시 소재가 된다. 모든 활동이 영상으로 이어진다.
+  // mats: [주제, 어울리는 장르]. 내 장르와 맞으면 보너스가 더 크다.
+  const OUT = { maxMats: 3, matDays: 15, placeCool: 48, pantryMax: 9 };
+  const PLACES = {
+    city: {
+      market: { name: '전통시장', icon: '🧺', hours: 6, cost: 5000, mood: 12, pantry: 2, desc: '식재료 2개 · 기분 +12',
+        mats: [['만원으로 시장 장보기', 'info'], ['시장 할머니 떡볶이', 'food'], ['시장 상인 인터뷰', 'info'], ['시장 골목 버스킹', 'music']] },
+      cafe: { name: '동네 카페', icon: '☕', hours: 5, cost: 4500, mood: 22, desc: '기분 +22',
+        mats: [['카페 신메뉴 솔직 후기', 'food'], ['카페 보드게임 한 판', 'game'], ['카페 음악 플레이리스트', 'music'], ['카페에서 공부하는 하루', 'info']] },
+      gym: { name: '헬스장', icon: '🏋️', hours: 6, cost: 3000, mood: 10, stamina: 25, hunger: -15, clean: -15, desc: '체력 +25 · 기분 +10',
+        mats: [['헬스 초보 한 달 변화', 'info'], ['운동할 때 듣는 노래', 'music'], ['운동 후 단백질 식단', 'food'], ['헬스 기구 퀘스트처럼 깨기', 'game']] },
+    },
+    country: {
+      garden: { name: '텃밭', icon: '🥬', hours: 6, cost: 0, mood: 10, hunger: -15, clean: -15, pantry: 3, desc: '식재료 3개 · 기분 +10',
+        mats: [['텃밭 첫 수확', 'food'], ['상추 키우는 법', 'info'], ['밭일하며 부르는 노래', 'music']] },
+      jangteo: { name: '5일장', icon: '🏮', hours: 7, cost: 4000, mood: 18, pantry: 2, desc: '식재료 2개 · 기분 +18',
+        mats: [['5일장 먹거리 투어', 'food'], ['장터 물가 비교', 'info'], ['장터 노래자랑', 'music'], ['장터 뽑기 도전', 'game']] },
+      village: { name: '마을회관', icon: '🏡', hours: 5, cost: 0, mood: 25, desc: '기분 +25',
+        mats: [['어르신 인생 이야기', 'info'], ['할머니 손맛 김치', 'food'], ['마을 윷놀이 대회', 'game']] },
+    },
+    seaside: {
+      fishing: { name: '낚시터', icon: '🎣', hours: 7, cost: 3000, mood: 15, game: 'fish', desc: '낚시 손맛 게임 · 잡은 만큼 식재료',
+        mats: [['바다낚시 첫 손맛', 'info'], ['잡은 물고기로 한 끼', 'food'], ['낚시 게임과 진짜 낚시 비교', 'game']] },
+      fishmarket: { name: '어시장', icon: '🐟', hours: 5, cost: 6000, mood: 12, pantry: 2, desc: '식재료 2개 · 기분 +12',
+        mats: [['어시장 제철 생선', 'food'], ['회 뜨는 법 배우기', 'info'], ['새벽 경매 구경', 'info']] },
+      beach: { name: '해변', icon: '🏖️', hours: 5, cost: 0, mood: 28, clean: -20, desc: '기분 +28',
+        mats: [['파도 소리 ASMR', 'music'], ['해변 버스킹', 'music'], ['모래성 쌓기 대결', 'game']] },
+    },
+    mountain: {
+      trail: { name: '등산로', icon: '🥾', hours: 8, cost: 0, mood: 20, stamina: 15, hunger: -20, clean: -15, desc: '체력 +15 · 기분 +20',
+        mats: [['초보 등산 브이로그', 'info'], ['정상에서 먹는 컵라면', 'food'], ['산 정상에서 부르는 노래', 'music']] },
+      valley: { name: '계곡', icon: '💦', hours: 5, cost: 0, mood: 25, clean: 15, desc: '기분 +25 · 청결 +15',
+        mats: [['계곡 물소리 1시간', 'music'], ['계곡 물놀이 챌린지', 'game'], ['계곡 백숙', 'food']] },
+      herbs: { name: '나물 캐기', icon: '🌿', hours: 6, cost: 0, mood: 10, hunger: -10, pantry: 3, desc: '식재료 3개 · 기분 +10',
+        mats: [['산나물 구별법', 'info'], ['산나물 비빔밥', 'food'], ['나물 캐기 시간 대결', 'game']] },
+    },
+  };
+  const COOK_MATS = [['자취생 집밥 한 상', 'food'], ['냉장고 털이 요리', 'food'], ['10분 집밥 레시피', 'info'], ['요리하며 듣는 노래', 'music']];
+
+  function placesOf(s) { return PLACES[s.region] || {}; }
+  function actDef(s, act) {   // 지금 하는 생활 행동의 표시 정보 (나들이 포함)
+    act = act || (s.life && s.life.act);
+    if (!act) return null;
+    if (act.id === 'out') { const P = placesOf(s)[act.place] || {}; return { name: (P.name || '동네') + ' 나들이', icon: P.icon || '🚶', at: 'outside' }; }
+    return LIFE_ACTS[act.id];
+  }
+  function placeFresh(s, id) { return s.gh - ((s.life.visited || {})[id] ?? -1e9) >= OUT.placeCool; }
+  function canGoOut(s, id) {
+    const P = placesOf(s)[id];
+    if (!P) return { ok: false, why: '없는 곳' };
+    const base = canLifeAct(s, 'walk');
+    if (!base.ok) return base;
+    if (s.money < P.cost) return { ok: false, why: '돈이 모자라요' };
+    return { ok: true };
+  }
+  // score: 손맛 게임 결과 0~1. null이면 평균(0.5)으로 친다.
+  function goOut(s, id, score, quiet) {
+    if (!canGoOut(s, id).ok) return false;
+    const P = placesOf(s)[id];
+    s.money -= P.cost;
+    if (!quiet) s.resting = false;
+    const fresh = placeFresh(s, id);
+    (s.life.visited = s.life.visited || {})[id] = s.gh;
+    s.life.act = { id: 'out', place: id, left: P.hours, total: P.hours, fresh, score: score == null ? null : clamp(score, 0, 1) };
+    if (!quiet) log(s, `${P.icon} ${P.name}에 다녀올게요${P.cost ? ` (₩${fmt(P.cost)})` : ''}`, 'info');
+    return true;
+  }
+  function addMat(s, src, list, sc) {
+    s.mats = s.mats || [];
+    const held = new Set(s.mats.map(m => m.topic));
+    const pool = list.filter(m => !held.has(m[0]));
+    if (!pool.length) return null;
+    const match = pool.filter(m => m[1] === s.genre);
+    const m = (match.length && rnd(s) < 0.6) ? pick(s, match) : pick(s, pool);
+    const fit = m[1] === s.genre, k = fit ? 1.08 : 1;
+    // 동네 소재는 작은 채널일수록 값지다 (큰 채널은 넓은 주제로 커서 동네 이야기 효과가 줄어든다)
+    const f = 1 / (1 + s.subs / 15000);
+    const range = [1 + ((1.05 + 0.2 * sc) * k - 1) * f, 1 + ((1.4 + 0.25 * sc) * k - 1) * f];
+    const card = { id: Math.floor(rnd(s) * 1e9), topic: m[0], g: m[1], mat: true, src: src.name, icon: src.icon, comp: '없음', fit,
+      q: fit ? 1 : 0, T: rr(s, range[0], range[1]), range, expiresGh: s.gh + OUT.matDays * 24 };
+    s.mats.unshift(card);
+    if (s.mats.length > OUT.maxMats) { const old = s.mats.pop(); log(s, `소재 「${old.topic}」는 자리가 없어 버렸어요`, 'info'); }
+    return card;
+  }
+  function finishOut(s, act) {
+    const P = placesOf(s)[act.place]; if (!P) return;
+    const L = s.life, sc = act.score == null ? 0.5 : act.score;
+    applyLife(s, { mood: P.mood, hunger: P.hunger, clean: P.clean, stamina: P.stamina });
+    let pantry = P.pantry || 0;
+    if (P.game === 'fish') pantry += Math.round(sc * 3);
+    L.pantry = Math.min(OUT.pantryMax, (L.pantry || 0) + pantry);
+    const got = act.fresh ? addMat(s, P, P.mats, sc) : null;
+    const bits = [pantry ? `식재료 ${pantry}개` : '', got ? `소재 「${got.topic}」` : act.fresh ? '' : '새 소재는 없었어요 (이틀 뒤에 다시)'].filter(Boolean);
+    log(s, `${P.icon} ${P.name}에서 돌아왔어요${bits.length ? ' · ' + bits.join(' · ') : ''}`, got ? 'good' : 'info');
+  }
+  function finishCook(s, act) {
+    const L = s.life;
+    if (act.score != null) { L.mood = clamp(L.mood + Math.round(act.score * 8), 0, 100); L.fullUntil += Math.round(act.score * 24); }
+    if (act.pantry) {
+      const sc = act.score == null ? 0.5 : act.score;
+      const got = addMat(s, { name: '집밥', icon: '🍳' }, COOK_MATS.concat([[`${REGIONS[s.region].name} 재료로 차린 밥상`, 'food']]), sc);
+      if (got) log(s, `🍳 직접 기른·사 온 재료로 요리! 소재 「${got.topic}」`, 'good');
+    }
+  }
+  // 촬영 손맛 게임: 직접 촬영 중일 때 영상 하나에 한 번. 품질 +0~3
+  function canShootGame(s) { const j = s.job; return !!(j && !j.partTime && j.stage === 1 && (j.how || [])[1] === 'self' && !j.shot && !lifeBusy(s) && s.gh >= s.burnoutUntil); }
+  function shootGame(s, score) {
+    if (!canShootGame(s)) return false;
+    s.job.shot = true; s.job.bonusQ = Math.floor(clamp(score, 0, 1) * 3 + 0.01);   // 완벽 +3, 건너뛰기(0.5) +1
+    log(s, s.job.bonusQ ? `🎬 촬영 손맛! 이번 영상 품질 +${s.job.bonusQ}` : '🎬 이번엔 초점이 조금 어긋났어요', s.job.bonusQ ? 'good' : 'info');
+    return true;
+  }
+  function expireMats(s) {
+    if (!s.mats || !s.mats.length) return;
+    const keep = s.mats.filter(m => m.expiresGh > s.gh);
+    if (keep.length < s.mats.length) { log(s, '오래된 소재가 시들었어요', 'info'); s.mats = keep; }
   }
 
   // ───────────────────────── 이벤트 ─────────────────────────
@@ -1306,7 +1436,7 @@
       if (s.uploadReady) upload(s, bestThumbIdx(s));
       if (canWork(s) && !s.resting) {
         if (s.stamina < 50) s.resting = true;
-        else startVideo(s, bestCardIdx(s));
+        else { const b = bestPick(s); startVideo(s, b.i, b.mat); }
       }
     }
 
@@ -1387,6 +1517,9 @@
     if (s.stamina == null || isNaN(s.stamina)) s.stamina = CONFIG.maxStaminaBase;
     if (!s.life) s.life = newLife();
     if (!s.life.svc) s.life.svc = {};
+    if (!s.mats) s.mats = [];
+    if (s.life.pantry == null) s.life.pantry = 0;
+    if (!s.life.visited) s.life.visited = {};
     s.v = 3;
     return s;
   }
@@ -1403,6 +1536,7 @@
   }
 
   root.Engine = {
+    OUT, PLACES, placesOf, actDef, placeFresh, canGoOut, goOut, canShootGame, shootGame, bestPick,
     LIFE, LIFE_ACTS, LIFE_GROUPS, LIFE_SERVICES, lifeScore, lifeTier, lifeQ, lifeCost, lifeBusy, canLifeAct, lifeAct, buyService, stopService,
     DECOR_CATS, DECOR_ITEMS, DECOR_CELL, roomLayout, buyDecor, placedHere, unplacedCount, canPlace, placeDecor, moveDecor, removeDecor, sellDecor, cozy, cozyBonus, footprint,
     SEASONS, SEASON_LOCAL, season, GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,

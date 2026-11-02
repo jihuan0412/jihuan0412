@@ -56,19 +56,24 @@ function botLife(s) {
   const L = s.life;
   if (L.hunger < 45 && s.money > 5000 && E.canLifeAct(s, 'cook').ok) return E.lifeAct(s, 'cook', true);
   if (L.clean < 35 && E.canLifeAct(s, 'shower').ok) return E.lifeAct(s, 'shower', true);
+  if (s._life === 'care' && L.pantry > 0 && L.hunger < 55 && E.canLifeAct(s, 'cook').ok) return E.lifeAct(s, 'cook', true);
+  if (s._out !== false && (s.mats.length === 0 || L.mood < 50)) {   // 소재가 없으면 아직 안 가 본 곳으로 나들이
+    const P = E.placesOf(s), ids = Object.keys(P).filter(id => E.placeFresh(s, id) && s.money > P[id].cost * 5 && E.canGoOut(s, id).ok);
+    if (ids.length) return E.goOut(s, ids[0], null, true);
+  }
   if (L.mood < 50 && E.canLifeAct(s, 'walk').ok) return E.lifeAct(s, 'walk', true);
   for (const k of ['coffee', 'robot']) if (!L.svc[k] && s.subs >= E.LIFE_SERVICES[k].unlock && s.money > E.LIFE_SERVICES[k].price * 3) E.buyService(s, k);
 }
-function play(pack, seed, minutes, region, style, genre, life) {
+function play(pack, seed, minutes, region, style, genre, life, out) {
   const s = E.newGame({ pack, genre: genre || 'info', region: region || 'city', trait: 'planner', rng: mulberry32(seed) });
-  s._style = style || 'self'; s._life = life || 'care';
+  s._style = style || 'self'; s._life = life || 'care'; s._out = out !== false && life !== 'neglect';
   const dtReal = 0.5, marks = { 5: null, 15: null, 30: null, 60: null };
   let firstUploadSec = null;
   for (let t = 0; t < minutes * 60; t += dtReal) {
     if (s.pendingEvent) E.resolveEvent(s, 0);
     if (s.uploadReady && !s.routine.on) E.upload(s, E.bestThumbIdx(s));
     if (!s.routine.on && E.canWork(s) && !s.resting) {
-      if (s.stamina < 50) s.resting = true; else E.startVideo(s, E.bestCardIdx(s));
+      if (s.stamina < 50) s.resting = true; else { const b = s._out === false ? { i: E.bestCardIdx(s), mat: false } : E.bestPick(s); E.startVideo(s, b.i, b.mat); }
     }
     botLife(s);
     if (s._style !== 'self') botAI(s);
@@ -77,7 +82,7 @@ function play(pack, seed, minutes, region, style, genre, life) {
     E.advance(s, dtReal * E.ghPerRealSec(), dtReal);
     if (firstUploadSec === null && (s.stats_videos || 0) >= 1) firstUploadSec = t;
     const m = (t + dtReal) / 60;
-    if (m in marks && marks[m] === null) marks[m] = { cond: E.lifeScore(s), subs: s.subs, money: s.money, q: E.baseQuality(s), vids: s.stats_videos || 0, mon: s.monetized, house: s.house };
+    if (m in marks && marks[m] === null) marks[m] = { cond: E.lifeScore(s), subs: s.subs, money: s.money, q: E.baseQuality(s), vids: s.stats_videos || 0, matV: s.videos.filter(v => v.mat).length, mon: s.monetized, house: s.house };
   }
   return { marks, firstUploadSec, firstViews: s.firstVideoV || 0 };
 }
@@ -94,6 +99,7 @@ const row = (label, runs) => {
 };
 console.log('— 생활 챙기기 (도시, 무료 시작)');
 for (const lf of ['care', 'neglect']) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, 'city', 'self', 'info', lf)); row(lf === 'care' ? '잘 챙김' : '자동만(방치)', runs); console.log('   60분 컨디션 중앙값', median(runs.map(r => r.marks[60].cond)).toFixed(0)); }
+{ const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, 'city', 'self', 'info', 'care', false)); row('잘 챙김·나들이 안 감', runs); }
 console.log('— 지역별 (무료 시작)');
 for (const region of Object.keys(E.REGIONS)) { const runs = []; for (let i = 0; i < N; i++) runs.push(play('free', 1000 + i, 60, region)); row(region, runs); }
 console.log('— 시작 세트별 (도시)');

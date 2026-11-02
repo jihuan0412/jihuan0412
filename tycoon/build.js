@@ -7,7 +7,7 @@ const engine = fs.readFileSync(path.join(__dirname, 'engine.js'), 'utf8');
 const scene = fs.readFileSync(path.join(__dirname, 'scene.js'), 'utf8');
 const scene3d = fs.readFileSync(path.join(__dirname, 'scene3d.js'), 'utf8');
 const three = fs.readFileSync(path.join(__dirname, 'vendor', 'three.min.js'), 'utf8');
-const extra = ['decor.js', 'music.js', 'community.js', 'homeui.js'];
+const extra = ['decor.js', 'music.js', 'community.js', 'homeui.js', 'minigame.js'];
 const out = html
   .replace('<script src="engine.js"></script>', () => '<script>\n' + engine + '\n</script>')
   .replace('<script src="vendor/three.min.js"></script>', () => '<script>\n' + three + '\n</script>')

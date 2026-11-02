@@ -585,7 +585,7 @@
     if (S.live) return { at: 'film', sit: true, talk: true, say: ['라이브 시작합니다!', '슈퍼챗 감사합니다!', '질문 받을게요~'][Math.floor(t / 2.5) % 3] };
     const la = S.life && S.life.act;
     if (la) {
-      const A = root.Engine.LIFE_ACTS[la.id];
+      const A = root.Engine.actDef(S, la) || {};
       if (A.at === 'outside') return { at: 'outside', hide: true };
       if (A.at === 'bath') return { at: 'door', hide: true, say: A.say };
       if (A.at === 'kitchen') return { at: 'kitchen', typing: true, cook: true, say: A.say };
