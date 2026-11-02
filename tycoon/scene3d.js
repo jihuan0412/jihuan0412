@@ -14,6 +14,7 @@
   let RW = 8, RD = 8, L = {};                     // 방 크기와 배치
   const camTarget = new T.Vector3();
   const anim = {};
+  let curHouse = null, lastCourierN = null;
   let player, courier = null, editor = null, movers = [], staffPeople = [];
   let bubbleEl, lastBubble = '';
   let lastIncome = null, lastSubs = null, lastVid = 0, floatAcc = 0, accMoney = 0, accSubs = 0, blinkAt = 2;
@@ -165,6 +166,13 @@
       outside: { x: -hx - 1.4, z: L.door.z },
       side: { x: L.side.x, z: L.side.z + 0.75, ry: Math.PI },
     };
+    if (curHouse) {
+      const K = root.Engine.roomLayout(curHouse).kitchen;
+      L.spot.kitchen = { x: K.spot.x, z: K.spot.z, ry: K.f > 0 ? -Math.PI / 2 : Math.PI / 2 };
+    } else L.spot.kitchen = { x: hx - 1, z: hz - 1, ry: Math.PI / 2 };
+    const bw = RW <= 6 ? 1.1 : 1.5;
+    L.spot.bedside = { x: L.bed.x + bw / 2 + 0.35, z: L.bed.z + 0.3, ry: -Math.PI / 2 };
+    L.spot.room = { x: 0.3, z: 0.6 };
     camTarget.set(0, 0.5, 0);
   }
 
@@ -177,7 +185,7 @@
     anim.cars = []; anim.waves = null; anim.boats = []; anim.streetLights = []; anim.windowsLit = []; anim.water = null; anim.clouds = [];
     glassMats = [];
     const H = root.Engine.HOUSES[S.house];
-    RW = H.size[0]; RD = H.size[1];
+    RW = H.size[0]; RD = H.size[1]; curHouse = S.house;
     layout();
     const hx = RW / 2, hz = RD / 2, WH = RW >= 10 ? 3.4 : 3, th = 0.2;
     // 바닥
@@ -225,7 +233,7 @@
     // 문
     const doorG = new T.Group(); doorG.position.set(lx + 0.06, 0, L.door.z); roomG.add(doorG); anim.door = doorG;
     const doorM = mat(H.wall === 'blue' ? '#3d7fc4' : H.wall === 'glass' || H.wall === 'concrete' ? '#3a3f4a' : '#8a5b34');
-    const leaf = new T.Group(); leaf.position.set(0, 0, -0.5); doorG.add(leaf); anim.doorLeaf = leaf;
+    const leaf = new T.Group(); leaf.position.set(0, 0, -0.5); doorG.add(leaf); anim.doorLeaf = leaf; doorG.userData.spot = 'door';
     box(0.06, 2.12, 1.0, doorM, 0, 1.06, 0.5, leaf);
     sph(0.05, mat('#e8c45a', { metalness: 0.6, roughness: 0.3 }), 0.08, 1.05, 0.88, leaf);
     // 걸레받이
@@ -308,6 +316,30 @@
     box(bw - 0.1, 0.2, 2.35, mat('#f1ecf7'), 0, 0.47, 0.02, bd);
     box(bw * 0.6, 0.14, 0.42, mat('#ffffff'), 0, 0.62, -0.88, bd);
     anim.blanket = box(bw - 0.06, 0.12, 1.5, mat(S.region === 'mountain' ? '#b5523a' : S.region === 'seaside' ? '#3aa0c8' : '#5d72d6'), 0, 0.6, 0.45, bd);
+    // 부엌 (냉장고 + 가스레인지) — 누르면 생활 메뉴
+    const K = root.Engine.roomLayout(S.house).kitchen;
+    const kg = new T.Group(); G.add(kg); kg.userData.spot = 'kitchen'; anim.kitchen = kg;
+    const small = !K.stove, fh = small ? 1.05 : 1.55;
+    box(0.6, fh, 0.62, mat('#eef1f4', { roughness: 0.35 }), K.x, fh / 2, K.fridgeZ, kg);
+    const F = K.f;
+    box(0.02, fh - 0.12, 0.56, mat('#cfd6de'), K.x + F * 0.305, fh / 2, K.fridgeZ, kg);
+    box(0.025, 0.02, 0.58, mat('#aab3bd'), K.x + F * 0.31, fh * 0.68, K.fridgeZ, kg);
+    box(0.04, 0.3, 0.04, mat('#8e98a3', { metalness: 0.6 }), K.x + F * 0.33, fh * 0.82, K.fridgeZ - 0.2, kg);
+    box(0.04, 0.3, 0.04, mat('#8e98a3', { metalness: 0.6 }), K.x + F * 0.33, fh * 0.45, K.fridgeZ - 0.2, kg);
+    ['#ff6b6b', '#ffd43b', '#4dabf7'].forEach((c, i) => box(0.02, 0.07, 0.07, mat(c), K.x + F * 0.32, fh * 0.6 + i * 0.1, K.fridgeZ - 0.12 + i * 0.07, kg));
+    anim.burners = [];
+    if (K.stove) {
+      box(0.62, 0.86, 0.64, mat(H.wall === 'log' || H.wall === 'hanok' ? C.wood : '#f2efe8'), K.x, 0.43, K.stoveZ, kg);
+      box(0.64, 0.04, 0.66, mat('#d6d2ca', { roughness: 0.4 }), K.x, 0.88, K.stoveZ, kg);
+      box(0.02, 0.5, 0.5, mat('#c9c4ba'), K.x + F * 0.315, 0.42, K.stoveZ, kg);
+      [-0.15, 0.15].forEach(o => { cyl(0.11, 0.11, 0.02, mat('#2a2a2a'), K.x, 0.91, K.stoveZ + o, kg, 14); const b = cyl(0.08, 0.08, 0.012, glow('#ff7a2a', 0), K.x, 0.925, K.stoveZ + o, kg, 14); anim.burners.push(b); });
+      anim.pot = cyl(0.13, 0.12, 0.16, mat('#b9c0c8', { metalness: 0.6, roughness: 0.3 }), K.x, 1.0, K.stoveZ - 0.15, kg, 14);
+      anim.potLid = cyl(0.135, 0.135, 0.02, mat('#a3aab3', { metalness: 0.6, roughness: 0.3 }), K.x, 1.09, K.stoveZ - 0.15, kg, 14);
+      box(0.24, 0.02, 0.14, mat('#e9e2d2'), K.x, 0.91, K.stoveZ + 0.2, kg);
+    }
+    anim.cookSteam = [];
+    for (let i = 0; i < 5; i++) { const st = sph(0.05, new T.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0 }), K.x, 1.1, K.stoveZ - 0.15, G, 6, 4); st.castShadow = false; anim.cookSteam.push({ m: st, k: i / 5 }); }
+    bd.userData.spot = 'bed';
     // 스툴
     const sl = new T.Group(); sl.position.set(L.film.x, 0, L.film.z); G.add(sl);
     cyl(0.24, 0.24, 0.06, mat('#9b6a3e'), 0, 0.46, 0, sl);
@@ -315,7 +347,6 @@
     // 집별 소품
     const hx = RW / 2, hz = RD / 2;
     if (H.wall === 'old') { box(0.5, 0.4, 0.4, flat('#8a6a4a'), hx - 0.6, 0.2, hz - 0.6, G); box(0.4, 0.3, 0.4, flat('#9a7a5a'), hx - 0.55, 0.55, hz - 0.65, G); }   // 낡은 궤짝
-    if (H.name === '고시원') { box(0.5, 0.9, 0.45, mat('#e6e6e6'), hx - 0.4, 0.45, -hz + 0.35, G); box(0.48, 0.02, 0.02, mat('#999'), hx - 0.4, 0.75, -hz + 0.58, G); }  // 작은 냉장고
     if (H.wall === 'log' || H.name === '통나무집') { // 벽난로
       box(1.1, 1.1, 0.5, flat('#7a7a80'), hx - 0.7, 0.55, hz - 0.35, G); box(0.6, 0.5, 0.1, mat('#1a1a1a'), hx - 0.7, 0.4, hz - 0.62, G);
       anim.fire = sph(0.16, glow('#ff8a2a', 2), hx - 0.7, 0.3, hz - 0.5, G, 8, 6);
@@ -552,6 +583,16 @@
     if (S.gh < S.burnoutUntil) return { at: 'bed', lie: true, say: '😵 번아웃…', burn: true };
     if (S.pendingEvent) return { at: null, say: '❗' };
     if (S.live) return { at: 'film', sit: true, talk: true, say: ['라이브 시작합니다!', '슈퍼챗 감사합니다!', '질문 받을게요~'][Math.floor(t / 2.5) % 3] };
+    const la = S.life && S.life.act;
+    if (la) {
+      const A = root.Engine.LIFE_ACTS[la.id];
+      if (A.at === 'outside') return { at: 'outside', hide: true };
+      if (A.at === 'bath') return { at: 'door', hide: true, say: A.say };
+      if (A.at === 'kitchen') return { at: 'kitchen', typing: true, cook: true, say: A.say };
+      if (A.at === 'bedside') return { at: 'bedside', talk: true, say: A.say };
+      if (A.at === 'desk') return { at: 'desk', sit: true, typing: true, say: A.say };
+      if (A.at === 'room') return { at: 'room', typing: true, say: A.say };
+    }
     if (S.resting) return { at: 'bed', lie: true, say: 'Zzz…' };
     if (j && j.partTime) return { at: 'outside', hide: true };
     if (j) {
@@ -563,6 +604,10 @@
       return { at: 'desk', sit: true, typing: true, say: '✂️ 편집 중' };
     }
     if (S.uploadReady) return { at: 'desk', sit: true, say: '📤 썸네일 고르기!' };
+    const L2 = S.life;
+    if (L2 && L2.hunger < 30) return { at: null, say: '🍚 배고파…' };
+    if (L2 && L2.clean < 30) return { at: null, say: '😣 씻고 싶다' };
+    if (L2 && L2.mood < 30) return { at: null, say: '😞 기분 전환이 필요해' };
     return { at: null };
   }
 
@@ -629,7 +674,7 @@
     placeCamera();
   }
   function setInset(px) { if (fallback) return fallback.setInset(px); if (Math.abs(px - insetCss) > 2) { insetCss = px; resize(); } }
-  function setDock(px) { dockCss = px; resize(); }
+  function setDock(px) { if (fallback) return; if (Math.abs(px - dockCss) > 2) { dockCss = px; resize(); } }
   function setLowGfx(on) {
     if (!renderer) return;
     renderer.shadowMap.enabled = !on; renderer.setPixelRatio(on ? 1 : Math.min(window.devicePixelRatio || 1, 2));
@@ -721,7 +766,7 @@
     if (task.at === 'bed') { player.tx = L.bed.x; player.tz = L.bed.z + 1.4; }
     else if (task.at) { player.tx = L.spot[task.at].x; player.tz = L.spot[task.at].z; }
     else if (t > (player.wanderAt || 0)) { player.wanderAt = t + 3 + Math.random() * 3; player.tx = (Math.random() - 0.3) * RW * 0.4; player.tz = (Math.random() - 0.2) * RD * 0.4; }
-    const moving = walkTo(player, dt, 1.7 * Math.min(2, Math.sqrt(speed || 1)));
+    const moving = walkTo(player, dt, (S.life && S.life.act ? 3.2 : 1.7) * Math.min(2, Math.sqrt(speed || 1)));
     const arrived = !moving;
     if (arrived && task.at && L.spot[task.at] && L.spot[task.at].ry != null) turnTo(player, L.spot[task.at].ry, dt);
     if (t > blinkAt) blinkAt = t + 2.5 + Math.random() * 2;
@@ -733,6 +778,11 @@
     if (anim.blanket) { anim.blanket.scale.z = lying ? 1.3 : 1; anim.blanket.position.z = lying ? 0.25 : 0.45; anim.blanket.position.y = lying ? 0.72 : 0.6; }
     if (anim.chair) anim.chair.rotation.y = arrived && task.at === 'desk' ? 0 : 0.5;
 
+    const cooking = arrived && task.cook;
+    anim.burners.forEach(b => { b.material.emissiveIntensity = cooking ? 1.8 + Math.sin(t * 12) * 0.3 : 0; });
+    if (anim.potLid) anim.potLid.position.y = 1.09 + (cooking ? Math.abs(Math.sin(t * 9)) * 0.025 : 0);
+    if (anim.cookSteam) { const K = root.Engine.roomLayout(S.house).kitchen; anim.cookSteam.forEach(s => { const q = (t * 0.6 + s.k) % 1; s.m.position.set(K.x + Math.sin(t * 2 + s.k * 6) * 0.04, 1.12 + q * 0.7, K.stoveZ - 0.15); s.m.material.opacity = cooking && K.stove ? 0.5 * (1 - q) : 0; s.m.scale.setScalar(0.6 + q * 1.2); }); }
+    if (S.life && !preview) { const n = S.life.courier || 0; if (lastCourierN == null) lastCourierN = n; if (n !== lastCourierN) { lastCourierN = n; courier = courier || spawnCourier(); } }
     updateCourier(dt); updateEditor(S, dt); updateMovers(S, dt); updateStaff(S, dt);
 
     // 말풍선
@@ -1083,9 +1133,18 @@
     return -1;
   }
 
+  // 방 안 물건(냉장고·침대·문) 누르기
+  function pickSpot(cx, cy) {
+    if (fallback || !renderer || !roomG) return null;
+    if (!place.ray) { place.ray = new T.Raycaster(); place.ndc = new T.Vector2(); }
+    pointerRay(cx, cy);
+    const hits = place.ray.intersectObjects(roomG.children, true);
+    for (const h of hits.slice(0, 3)) { let o = h.object; while (o && o !== roomG) { if (o.userData && o.userData.spot) return o.userData.spot; o = o.parent; } }
+    return null;
+  }
   function tapFx(x, y) { if (fallback) return fallback.tapFx(x, y); floatText('+작업!', x + (Math.random() - 0.5) * 40, y, 'tap'); }
   function toLogical(cx, cy) { if (fallback) return fallback.toLogical(cx, cy); return { x: cx, y: cy }; }
 
   root.Scene = { init, frame, tapFx, toLogical, resize, setInset, setDock, setPreview, setLowGfx, is3D: () => !fallback,
-    setPlacement, placementPointer, placementConfirm, pickDecorAt };
+    setPlacement, placementPointer, placementConfirm, pickDecorAt, pickSpot };
 })(window);

@@ -140,10 +140,10 @@
     class_pack: { name: '원데이 클래스 패키지', price: 1100, once: true,
       desc: '편집 기초 강의 + 썸네일 디자인 강의 + 기획·대본 강의',
       give: { equip: { edu_edit: 1, edu_thumb: 1, edu_plan: 1 } } },
-    // 두 입문 세트를 합친 묶음 (따로 사면 ₩3,300). 60분 성장 무료의 약 3배 — 미러리스 카메라를 넣으면 9배로 뛰어 뺐다.
-    full_set: { name: '크리에이터 풀세트', price: 2900, once: true,
-      desc: '입문 PC 팩 + 초보 장비 세트 (램 16GB · SATA SSD · 편집 소프트웨어 구독 · USB 마이크 · 링라이트 · 방음 커튼)',
-      give: { equip: { ram: 1, ssd: 1, sw: 1, mic: 1, light: 1, space: 1 } } },
+    // 입문 PC 팩 + 링라이트·방음 커튼. 60분 성장 무료의 약 3배. 미러리스 카메라나 USB 마이크까지 넣으면 품질이 바이럴 구간을 넘어 5~9배로 뛴다.
+    full_set: { name: '크리에이터 풀세트', price: 2200, once: true,
+      desc: '입문 PC 팩 + 링라이트 + 방음 커튼 (램 16GB · SATA SSD · 편집 소프트웨어 구독 포함)',
+      give: { equip: { ram: 1, ssd: 1, sw: 1, light: 1, space: 1 } } },
     studio: { name: '홈 스튜디오 꾸미기', price: 3300, once: true,
       desc: '홈 스튜디오 + 3점 조명 + NVMe SSD',
       give: { equip: { space: 2, light: 2, ssd: 2 } } },
@@ -154,19 +154,19 @@
   // ───────────────────────── 지역과 집 ─────────────────────────
   // 지역: 시작할 곳. 지역 전용 주제(경쟁 낮고 반응 좋음), 지역 이벤트, 생활 조건이 다르다.
   const REGIONS = {
-    city: { name: '도시', icon: '🏙️', startMoney: 400000, reachMul: 1.1, partPay: 1.3, sponsorMul: 1.4, editMul: 1, regen: 0, localShare: 0.25,
+    city: { name: '도시', icon: '🏙️', startMoney: 400000, reachMul: 1.1, partPay: 1.3, sponsorMul: 1.4, editMul: 1, regen: 0, localShare: 0.25, life: { cook: 1.1, delivery: 0.85, eatout: 1.2 }, deliveryWait: 0.6,
       desc: '트렌드가 빠르고 협찬이 잘 들어온다. 알바 시급이 높지만 월세가 비싸고 시끄럽다.',
       topics: ['지하철 환승 꿀팁', '성수동 팝업스토어 정리', '청년 월세 지원금', '배달비 아끼는 법', '자취방 구하는 법', '공유 오피스 비교', '야근러 건강 관리', '도심 무료 전시'],
       localT: [1.0, 1.6], events: ['noise', 'popup'] },
-    country: { name: '농촌', icon: '🌾', startMoney: 250000, reachMul: 0.9, partPay: 0.85, sponsorMul: 0.8, editMul: 1.1, regen: 1, localShare: 0.4,
+    country: { name: '농촌', icon: '🌾', startMoney: 250000, reachMul: 0.9, partPay: 0.85, sponsorMul: 0.8, editMul: 1.1, regen: 1, localShare: 0.4, life: { ramen: 0.9, cook: 0.6, delivery: 1.4, eatout: 0.8 }, deliveryWait: 2,
       desc: '집값이 거의 들지 않고 조용하다. 시골 콘텐츠는 경쟁이 낮다. 인터넷이 느려 편집이 조금 더디다.',
       topics: ['시골 빈집 수리기', '텃밭 1년 농사 일지', '귀농 지원금 총정리', '5일장 물가 탐방', '농기계 임대 받는 법', '시골 살이 한 달 비용', '토종 씨앗 나눔', '청년 농부 창업'],
       localT: [1.1, 1.7], events: ['harvest', 'internet'] },
-    seaside: { name: '바닷가', icon: '🌊', startMoney: 300000, reachMul: 1.0, partPay: 1.0, sponsorMul: 1.0, editMul: 1, regen: 0.5, localShare: 0.35,
+    seaside: { name: '바닷가', icon: '🌊', startMoney: 300000, reachMul: 1.0, partPay: 1.0, sponsorMul: 1.0, editMul: 1, regen: 0.5, localShare: 0.35, life: { cook: 0.8, delivery: 1.1 }, deliveryWait: 1.3,
       desc: '바다·낚시·캠핑 주제가 강하다. 축제철 대목이 있지만 태풍이 온다.',
       topics: ['물때표 보는 법', '갯벌 체험 명소', '바다낚시 입문 장비', '횟집 시세 읽는 법', '차박 명소 정리', '해수욕장 주차 꿀팁', '서핑 첫 수업', '어촌 한 달 살기'],
       localT: [1.0, 1.8], events: ['typhoon', 'festival'] },
-    mountain: { name: '산속', icon: '⛰️', startMoney: 300000, reachMul: 0.95, partPay: 0.85, sponsorMul: 0.9, editMul: 1, regen: 1.5, localShare: 0.45,
+    mountain: { name: '산속', icon: '⛰️', startMoney: 300000, reachMul: 0.95, partPay: 0.85, sponsorMul: 0.9, editMul: 1, regen: 1.5, localShare: 0.45, life: { cook: 0.7, delivery: 1.6, eatout: 1.1 }, deliveryWait: 2.5,
       desc: '힐링·캠핑·자연 소리 콘텐츠. 쉬면 체력이 빨리 찬다. 정전과 산짐승 소동이 있다.',
       topics: ['초보 등산 코스', '겨울 캠핑 장비', '야생 버섯 구별법', '계곡 피서지 추천', '산속 자연 소리 8시간', '나무 장작 패기', '산골 한 달 살기', '별 사진 찍는 법'],
       localT: [1.2, 1.8], events: ['blackout', 'wildlife'] },
@@ -198,7 +198,7 @@
   // 방 안 고정 가구 위치 (scene3d.js의 배치와 같은 식). 꾸미기 아이템이 이 자리와 겹치지 않게 한다.
   function roomLayout(houseId) {
     const H = HOUSES[houseId], RW = H.size[0], RD = H.size[1], hx = RW / 2, hz = RD / 2;
-    const L = { RW, RD, desk: { x: -hx + 1.95, z: -hz + 0.55 }, film: { x: hx - 1.25, z: -hz + 1.55 }, bed: { x: -hx + 0.85, z: hz - 1.35 }, door: { z: -hz + Math.min(2.1, RD * 0.32) } };
+    const L = { RW, RD, desk: { x: -hx + 1.95, z: -hz + 0.55 }, film: { x: hx - 1.25, z: -hz + 1.55 }, bed: { x: -hx + 0.85, z: hz - 1.35 }, door: { z: -hz + Math.min(2.1, RD * 0.32) }, kitchen: kitchenSpot(H) };
     // 막힌 영역(사각형 x0,z0,x1,z1): 책상+의자, 침대, 촬영 구역(스툴~삼각대), 문 앞 통로
     const bw = RW <= 6 ? 1.1 : 1.5;
     L.blocked = [
@@ -206,8 +206,28 @@
       [L.bed.x - bw / 2, L.bed.z - 1.3, L.bed.x + bw / 2, L.bed.z + 1.3],
       [L.film.x - 1.0, -hz, hx, Math.min(L.film.z + 2.3, hz)],
       [-hx, L.door.z - 0.6, -hx + 1.0, L.door.z + 0.6],
+      L.kitchen.side === 'left' ? [-hx, L.kitchen.z0, -hx + 1.3, L.kitchen.z1] : [hx - 1.3, L.kitchen.z0, hx, L.kitchen.z1],
     ];
     return L;
+  }
+  // 부엌(냉장고 + 가스레인지): 왼쪽 벽 문과 침대 사이(카메라에서 잘 보이는 벽)에 자리가 있으면 거기, 없으면 오른쪽 아래.
+  // 촬영 구역과 집별 소품(벽난로·평상 등)을 피한다. 좁으면 냉장고만.
+  function kitchenSpot(H) {
+    const RW = H.size[0], RD = H.size[1], hx = RW / 2, hz = RD / 2;
+    const doorZ = -hz + Math.min(2.1, RD * 0.32), bedZ = hz - 1.35;
+    const g0 = doorZ + 0.65, g1 = bedZ - 1.3 - 0.05;
+    const mk = (side, z0, z1, stove) => {
+      const f = side === 'left' ? 1 : -1, x = side === 'left' ? -hx + 0.35 : hx - 0.35;
+      return { side, f, x, z0, z1, stove, fridgeZ: z1 - 0.33, stoveZ: z0 + 0.33, spot: { x: x + f * 0.68, z: stove ? (z0 + z1) / 2 : z1 - 0.33 } };
+    };
+    if (g1 - g0 >= 1.3) return mk('left', g1 - 1.3, g1, true);
+    if (g1 - g0 >= 0.66) return mk('left', g1 - 0.66, g1, false);
+    const filmEnd = Math.min(-hz + 1.55 + 2.3, hz);
+    const corner = H.wall === 'hanok' ? 1.4 : (H.wall === 'log' || H.name === '통나무집') ? 0.75 : H.wall === 'old' || H.wall === 'barn' ? 1.0 : H.wall === 'blue' ? 0.85 : 0.05;
+    let z1 = hz - corner, z0 = z1 - 1.3, stove = true;
+    if (z0 < filmEnd) { z0 = z1 - 0.66; stove = false; }
+    if (z0 < filmEnd) { z1 = hz - 0.05; z0 = z1 - 0.66; }
+    return mk('right', z0, z1, stove);
   }
 
   // ───────────────────────── AI 제작 ─────────────────────────
@@ -339,7 +359,7 @@
     const genre = GENRES[opt.genre] ? opt.genre : 'info';
     const house = (HOUSES[opt.house] && HOUSES[opt.house].region === region) ? opt.house : housesOf(region)[0];
     const s = {
-      v: 2, genre, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], candidates: [], candRefreshGh: 0,
+      v: 3, genre, region, house, moving: null, nextRentGh: RENT_DAYS * 24, debtDays: 0, staff: [], candidates: [], candRefreshGh: 0,
       pipeline: ['self', 'self', 'self'], ai: { plan: 0, credits: AI_PLANS[0].credits, made: 0, label: true },
       live: null, goods: null, membersOn: false,
       decor: { owned: {}, placed: {}, theme: {} }, channel: opt.channel || '나의 정보 채널', trait: opt.trait || 'planner',
@@ -360,6 +380,7 @@
       pendingEvent: null, nextVideoBoost: null,
       purchases: {}, cashSpent: 0,
       quests: {}, log: [], realSec: 0, _toasts: [],
+      life: newLife(),
     };
     if (opt.rng) s.rng = opt.rng;
     if (opt.ngp) {   // 뉴게임+: 지난 판 AI 숙련 절반, 시작 자금 1.5배
@@ -371,6 +392,8 @@
     log(s, `${REGIONS[region].icon} ${REGIONS[region].name}의 ${HOUSES[house].name}에서 「${s.channel}」 개설! 첫 영상 주제를 골라 보세요.`, 'good');
     return s;
   }
+
+  function newLife() { return { hunger: 80, clean: 85, mood: 70, act: null, delivery: null, fullUntil: 0, svc: {} }; }
 
   // ───────────────────────── 파생 수치 ─────────────────────────
   function maxStamina(s) { return CONFIG.maxStaminaBase + s.skills.fitness * 10; }
@@ -405,6 +428,7 @@
     let q = CONFIG.qualityBase + effects(s).q + s.skills.script;
     if (s.trait === 'editor') q += 10;
     if (s.trait === 'planner') q += 5;
+    q += lifeQ(s);
     return clamp(q, 0, CONFIG.qualityMax);
   }
   function G(s) { return GENRES[s.genre] || GENRES.info; }
@@ -428,6 +452,7 @@
     let h = base * (1 - 0.05 * s.skills.speed) * [e.plan, e.shoot, e.edit][i];
     if (s.trait === 'editor') h *= 0.75;
     if (i === 2 && s.job && s.job.outsource) h *= CONFIG.outsourceEdit.timeMul;
+    if (s.life) h /= lifeTier(s).speed;
     return h;
   }
   function stageHours(s, i) { return stageHoursBy(s, i, stageMethod(s, i)); }
@@ -555,7 +580,7 @@
     }
   }
   function tap(s) {
-    if (!s.job || s.job.partTime || s.gh < s.burnoutUntil || s.pendingEvent) return false;
+    if (!s.job || s.job.partTime || s.gh < s.burnoutUntil || s.pendingEvent || lifeBusy(s)) return false;
     workHours(s, CONFIG.tapHours);
     return true;
   }
@@ -563,6 +588,7 @@
     s.burnoutUntil = s.gh + CONFIG.burnout.hours;
     s.favor = clamp(s.favor + CONFIG.burnout.favor, CONFIG.favor.min, CONFIG.favor.max);
     s.resting = true;
+    if (s.life) s.life.mood = Math.max(0, s.life.mood - 25);
     log(s, '번아웃! 7일간 강제 휴식, 알고리즘 호감도 -15', 'bad');
   }
 
@@ -623,6 +649,7 @@
     const target = f.base + f.perQ * u.q + f.perCtr * (th.real - 1) + (s.streak >= 4 ? f.streakBonus : 0);
     s.favor = clamp(s.favor + (target - s.favor) * f.rate, f.min, f.max);
     s.lastUploadGh = s.gh;
+    if (s.life) s.life.mood = clamp(s.life.mood + (viral ? 12 : 4), 0, 100);
     s.uploadReady = null;
     s.stats_videos = (s.stats_videos || 0) + 1;
     if (s.stats_videos === 1) s.firstVideoV = V;
@@ -847,7 +874,7 @@
   function monthly(s) {
     const H = HOUSES[s.house];
     const sal = (s.staff || []).reduce((a, x) => a + x.salary, 0);
-    return { rent: H.rent, ai: AI_PLANS[s.ai.plan].monthly, salary: sal, members: memberIncome(s) };
+    return { rent: H.rent, ai: AI_PLANS[s.ai.plan].monthly, salary: sal, life: lifeMonthly(s), members: memberIncome(s) };
   }
 
   function equipNext(s, k) { return EQUIP[k].tiers[s.equip[k] + 1] || null; }
@@ -915,6 +942,113 @@
     s.cashSpent += p.price;
     log(s, `「${p.name}」 지급 완료 (모의 결제)`, 'good');
     return true;
+  }
+
+  // ───────────────────────── 생활 (배부름·청결·기분 → 컨디션) ─────────────────────────
+  // 벌칙보다 보상 쪽: 잘 챙기면 '컨디션 최상'으로 품질·작업 속도가 오른다. 안 챙겨도 알아서 라면·샤워는 해서 게임이 멈추지는 않는다.
+  // 수치는 게임 시간 1시간당. 1배속 기준 배부름 100→0 약 70초. 게임 1년이 실제 20분이라 끼니값은 상징적으로 싸게.
+  const LIFE = {
+    decay: { hunger: 0.6, clean: 0.35, mood: 0.22 },
+    auto: { hunger: 35, clean: 30 },
+    moodRest: 45,   // 기분은 가만두면 45 근처로 내려와 머문다 (방치해도 '보통'은 유지)
+    tiers: [   // 컨디션 점수 = 배부름 40% + 청결 30% + 기분 30%
+      { min: 70, name: '최상', icon: '😄', q: 2, speed: 1.15, regen: 1.1 },
+      { min: 40, name: '보통', icon: '🙂', q: 0, speed: 1, regen: 1 },
+      { min: 20, name: '지침', icon: '😩', q: -3, speed: 0.92, regen: 0.85 },
+      { min: -1, name: '최악', icon: '😵', q: -6, speed: 0.8, regen: 0.6 },
+    ],
+  };
+  // hours: 게임 시간 (1배속 1시간 = 0.42초). 캐릭터가 걸어가 하는 모습이 보이게 몇 시간씩.
+  // at: 3D에서 캐릭터가 가는 곳. cost는 지역 배율(REGIONS.life)을 곱한다.
+  const LIFE_ACTS = {
+    ramen:    { name: '라면 끓이기', icon: '🍜', group: 'eat', cost: 300, hours: 3, hunger: 35, mood: -3, at: 'kitchen', say: '🍜 후루룩', desc: '싸고 빠르지만 기분이 조금 떨어져요' },
+    cook:     { name: '집밥 요리', icon: '🍳', group: 'eat', cost: 800, hours: 5, hunger: 85, mood: 10, buff: 48, at: 'kitchen', say: '🍳 요리 중', desc: '든든함: 이틀 동안 품질 +1' },
+    delivery: { name: '배달 시키기', icon: '🛵', group: 'eat', cost: 3000, hours: 0, wait: 2, hunger: 70, mood: 10, desc: '하던 일을 멈추지 않아요. 2시간 뒤 도착' },
+    eatout:   { name: '밖에서 사 먹기', icon: '🍲', group: 'eat', cost: 4000, hours: 6, hunger: 95, mood: 25, at: 'outside', say: '', desc: '배부르고 기분도 좋아져요' },
+    shower:   { name: '씻기', icon: '🚿', group: 'care', cost: 0, hours: 3, clean: 100, mood: 3, at: 'bath', say: '🚿 씻는 중', desc: '청결 가득' },
+    tidy:     { name: '방 청소', icon: '🧹', group: 'care', cost: 0, hours: 4, clean: 25, mood: 6, at: 'room', say: '🧹 청소 중', desc: '청결 +25, 기분 +6' },
+    walk:     { name: '동네 산책', icon: '🚶', group: 'fun', cost: 0, hours: 5, mood: 35, stamina: 10, at: 'outside', desc: '기분 +35, 체력 +10' },
+    call:     { name: '친구와 통화', icon: '📞', group: 'fun', cost: 0, hours: 3, mood: 20, at: 'bedside', say: '📞 응응, 나 요즘…', desc: '기분 +20' },
+    game:     { name: '게임 한 판', icon: '🎮', group: 'fun', cost: 0, hours: 4, mood: 25, at: 'desk', say: '🎮 한 판만 더…', desc: '기분 +25' },
+  };
+  const LIFE_GROUPS = { eat: '먹기', care: '씻기·청소', fun: '기분 전환' };
+  // 게임머니로 사는 생활 자동화 (타이쿤식: 귀찮은 일을 돈으로 맡긴다)
+  const LIFE_SERVICES = {
+    mealkit: { name: '도시락 정기 배송', icon: '🍱', price: 0, monthly: 40000, unlock: 0, desc: '배고프면 알아서 도시락을 먹어요 (라면 대신, 기분 안 떨어짐)' },
+    robot:   { name: '로봇청소기', icon: '🤖', price: 150000, monthly: 0, unlock: 300, desc: '청결이 절반 속도로 줄어요' },
+    coffee:  { name: '커피머신', icon: '☕', price: 90000, monthly: 0, unlock: 100, desc: '기분이 천천히 줄고, 작업 중 기분 +' },
+    helper:  { name: '가사 도우미', icon: '🧑‍🍳', price: 0, monthly: 300000, unlock: 10000, desc: '집밥과 청소를 맡아 줘요 (든든함 유지, 청결 가득)' },
+  };
+
+  function lifeScore(s) { const L = s.life; return L ? 0.4 * L.hunger + 0.3 * L.clean + 0.3 * L.mood : 70; }
+  function lifeTier(s) { const sc = lifeScore(s); return LIFE.tiers.find(t => sc >= t.min); }
+  function lifeQ(s) { if (!s.life) return 0; return lifeTier(s).q + (s.gh < (s.life.fullUntil || 0) ? 1 : 0); }
+  function lifeCost(s, id) { const A = LIFE_ACTS[id], m = (REGIONS[s.region].life || {})[id] || 1; return Math.round(A.cost * m / 100) * 100; }
+  function lifeBusy(s) { return !!(s.life && s.life.act); }
+  function canLifeAct(s, id) {
+    const A = LIFE_ACTS[id];
+    if (!A || !s.life || s.pendingEvent || s.moving || s.live || s.ended) return { ok: false, why: '지금은 못 해요' };
+    if (s.gh < s.burnoutUntil) return { ok: false, why: '번아웃 휴식 중' };
+    if (s.job && s.job.partTime) return { ok: false, why: '알바 중' };
+    if (A.hours > 0 && s.life.act) return { ok: false, why: '다른 일을 하는 중' };
+    if (id === 'delivery' && s.life.delivery) return { ok: false, why: '배달 오는 중' };
+    const c = lifeCost(s, id);
+    if (c > 0 && s.money < c) return { ok: false, why: '돈이 모자라요' };
+    return { ok: true };
+  }
+  function lifeAct(s, id, quiet) {
+    if (!canLifeAct(s, id).ok) return false;
+    const A = LIFE_ACTS[id], c = lifeCost(s, id);
+    s.money -= c;
+    if (!quiet) s.resting = false;   // 직접 누르면 쉬던 걸 멈추고, 자동으로 챙길 때는 쉬는 중에도 그대로
+    if (A.wait) { s.life.delivery = { id, at: s.gh + A.wait * (REGIONS[s.region].deliveryWait || 1) }; if (!quiet) log(s, `${A.icon} 배달 주문! 곧 도착해요`, 'info'); return true; }
+    s.life.act = { id, left: A.hours, total: A.hours };
+    if (!quiet) log(s, `${A.icon} ${A.name}${c ? ` (₩${fmt(c)})` : ''}`, 'info');
+    return true;
+  }
+  function applyLife(s, A) {
+    const L = s.life;
+    if (A.hunger) L.hunger = clamp(L.hunger + A.hunger, 0, 100);
+    if (A.clean) L.clean = clamp(L.clean + A.clean, 0, 100);
+    if (A.mood) L.mood = clamp(L.mood + A.mood, 0, 100);
+    if (A.stamina) s.stamina = Math.min(maxStamina(s), s.stamina + A.stamina);
+    if (A.buff) L.fullUntil = s.gh + A.buff;
+  }
+  function buyService(s, id) {
+    const V = LIFE_SERVICES[id];
+    if (!V || s.life.svc[id] || s.subs < V.unlock || s.money < V.price) return false;
+    s.money -= V.price; s.life.svc[id] = true;
+    log(s, `${V.icon} ${V.name} 시작!`, 'good');
+    return true;
+  }
+  function stopService(s, id) { if (!s.life.svc[id] || !LIFE_SERVICES[id].monthly) return false; s.life.svc[id] = false; log(s, `${LIFE_SERVICES[id].name} 해지`, 'info'); return true; }
+  function lifeMonthly(s) { let m = 0; if (s.life) for (const k in s.life.svc) if (s.life.svc[k]) m += LIFE_SERVICES[k].monthly; return m; }
+
+  function lifeStep(s, h) {
+    const L = s.life; if (!L) return;
+    const sv = L.svc, D = LIFE.decay;
+    const working = s.job && !s.job.partTime && stageMethod(s, s.job.stage) === 'self';
+    L.hunger = clamp(L.hunger - D.hunger * h * (working ? 1.15 : 1), 0, 100);
+    L.clean = clamp(L.clean - D.clean * h * (sv.robot ? 0.5 : 1), 0, 100);
+    let md = D.mood * (sv.coffee ? 0.6 : 1);
+    if (L.hunger < 15) md += 0.6;
+    if (L.clean < 15) md += 0.4;
+    if (L.mood > LIFE.moodRest || L.hunger < 15 || L.clean < 15) L.mood = clamp(L.mood - md * h, 0, 100);
+    if (sv.helper) { L.clean = Math.max(L.clean, 85); }
+    // 하던 생활 행동
+    if (L.act) {
+      L.act.left -= h;
+      if (L.act.left <= 0) { const A = LIFE_ACTS[L.act.id]; L.act = null; applyLife(s, A); }
+    }
+    if (L.delivery && s.gh >= L.delivery.at) { const A = LIFE_ACTS[L.delivery.id]; L.delivery = null; applyLife(s, A); L.courier = (L.courier || 0) + 1; log(s, '🛵 배달 왔어요! 맛있게 먹었습니다', 'good'); }
+    // 자동으로 챙기기 (방치해도 멈추지 않게)
+    if (L.hunger < LIFE.auto.hunger && !L.delivery) {
+      if (sv.helper) { applyLife(s, LIFE_ACTS.cook); L.autoN = (L.autoN || 0) + 1; }
+      else if (sv.mealkit) { applyLife(s, { hunger: 60, mood: 2 }); L.autoN = (L.autoN || 0) + 1; }
+      else if (!L.act && canLifeAct(s, 'ramen').ok) { lifeAct(s, 'ramen', true); L.mood = Math.min(100, L.mood + 2); L.autoN = (L.autoN || 0) + 1; }
+      else if (!L.act && L.hunger < 10) { applyLife(s, { hunger: 25, mood: -2 }); }   // 돈이 없으면 집에 있는 걸로 대충 때운다
+    }
+    if (L.clean < LIFE.auto.clean && !L.act && canLifeAct(s, 'shower').ok) lifeAct(s, 'shower', true);
   }
 
   // ───────────────────────── 이벤트 ─────────────────────────
@@ -1088,19 +1222,21 @@
     // 체력 & 작업
     const burnt = t1 < s.burnoutUntil;
     if (burnt || s.resting) {
-      s.stamina = Math.min(ms, s.stamina + (CONFIG.staminaRegen.resting + effects(s).regen) * h);
+      s.stamina = Math.min(ms, s.stamina + (CONFIG.staminaRegen.resting + effects(s).regen) * h * (s.life ? lifeTier(s).regen : 1));
       if (!burnt && s.resting && s.stamina >= ms) { s.resting = false; if (!s.routine.on) log(s, '휴식 끝, 체력 가득!', 'info'); }
     } else if (s.job && s.job.partTime) {
       s.job.left -= h;
       if (s.job.left <= 0) { const pay = partPay(s); s.job = null; s.money += pay; log(s, `알바 끝 +₩${fmt(pay)}`, 'info'); }
     } else if (s.job) {
       const selfNow = stageMethod(s, s.job.stage) === 'self' && !(s.job.stage === 2 && s.job.outsource);
-      s.stamina = Math.min(ms, s.stamina + (selfNow ? CONFIG.staminaRegen.working : CONFIG.staminaRegen.idle) * h);
-      workHours(s, h);
+      const paused = selfNow && lifeBusy(s);      // 밥 먹거나 씻는 동안 직접 하던 작업은 멈춘다
+      s.stamina = Math.min(ms, s.stamina + (selfNow && !paused ? CONFIG.staminaRegen.working : CONFIG.staminaRegen.idle) * h);
+      if (!paused) workHours(s, h);
     } else {
       s.stamina = Math.min(ms, s.stamina + CONFIG.staminaRegen.idle * h);
     }
 
+    lifeStep(s, h);
     // 이사
     if (s.moving && t1 >= s.moving.untilGh) finishMove(s);
     // 라이브
@@ -1149,9 +1285,9 @@
     if (t1 >= s.nextRentGh) {
       const mo = monthly(s), rent = mo.rent;
       s.nextRentGh += RENT_DAYS * 24;
-      const out = mo.rent + mo.ai + mo.salary;
+      const out = mo.rent + mo.ai + mo.salary + (mo.life || 0);
       s.money += mo.members - out; s.totalIncome += mo.members;
-      if (out || mo.members) log(s, `📅 월 정산: 월세 ₩${fmt(mo.rent)} · AI ₩${fmt(mo.ai)} · 월급 ₩${fmt(mo.salary)}${mo.members ? ` · 멤버십 +₩${fmt(mo.members)}` : ''}`, s.money < 0 ? 'bad' : 'info');
+      if (out || mo.members) log(s, `📅 월 정산: 월세 ₩${fmt(mo.rent)} · AI ₩${fmt(mo.ai)} · 월급 ₩${fmt(mo.salary)}${mo.life ? ` · 생활 ₩${fmt(mo.life)}` : ''}${mo.members ? ` · 멤버십 +₩${fmt(mo.members)}` : ''}`, s.money < 0 ? 'bad' : 'info');
       s.ai.credits = Math.max(Math.min(s.ai.credits, AI_PLANS[s.ai.plan].credits * 2), AI_PLANS[s.ai.plan].credits);
       if (s.money < 0) (s.staff || []).forEach(x => { x.mood -= 20; });
       if (rent < 0) {}
@@ -1234,6 +1370,7 @@
     addViews(s, tail, s.tailQ);
     s.tailRate *= Math.exp(-days / CONFIG.tailTauDays);
     s.stamina = maxStamina(s);
+    if (s.life) { s.life.act = null; s.life.hunger = Math.max(s.life.hunger, 60); s.life.clean = Math.max(s.life.clean, 60); }
     return { realSec: sec, money: s.money - before.money, subs: s.subs - before.subs, views: s.totalViews - before.views };
   }
 
@@ -1248,7 +1385,9 @@
     if (!s.staff) s.staff = [];
     if (!s.candidates) { s.candidates = []; s.candRefreshGh = 0; }
     if (s.stamina == null || isNaN(s.stamina)) s.stamina = CONFIG.maxStaminaBase;
-    s.v = 2;
+    if (!s.life) s.life = newLife();
+    if (!s.life.svc) s.life.svc = {};
+    s.v = 3;
     return s;
   }
 
@@ -1264,6 +1403,7 @@
   }
 
   root.Engine = {
+    LIFE, LIFE_ACTS, LIFE_GROUPS, LIFE_SERVICES, lifeScore, lifeTier, lifeQ, lifeCost, lifeBusy, canLifeAct, lifeAct, buyService, stopService,
     DECOR_CATS, DECOR_ITEMS, DECOR_CELL, roomLayout, buyDecor, placedHere, unplacedCount, canPlace, placeDecor, moveDecor, removeDecor, sellDecor, cozy, cozyBonus, footprint,
     SEASONS, SEASON_LOCAL, season, GENRES, CONFIG, EQUIP, GROUPS, SKILLS, TRAITS, PACKS, START_SETS, QUESTS, ROUTINE_PRICE, REGIONS, HOUSES, MOVE_DAYS, RENT_DAYS,
     housesOf, effEquip, moveCost, canMove, moveHouse, partPay, migrate,

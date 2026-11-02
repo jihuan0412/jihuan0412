@@ -77,7 +77,9 @@
   .hud .stat { background: rgba(14,17,24,.72); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(4px); }
   .status { position: fixed; left: 50%; transform: translateX(-50%); width: min(calc(100vw - 20px), 460px); z-index: 4; display: none; }
   body.playing .status { display: block; }
-  body.sheet-open .toasts { bottom: calc(56dvh + 74px); }
+  body.playing.sheet-open .status { display: none; }
+  body.sheet-open .toasts { bottom: calc(48dvh + 74px); }
+  body.sheet-full .toasts { bottom: 80px; }
   .scard { background: rgba(14,17,24,.82); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(4px); font-size: 13px; }
   .scard .bar { margin-top: 5px; }
   .qline { display: inline-block; margin-top: 4px; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: rgba(14,17,24,.7); color: #cfd5e2; }
@@ -87,6 +89,22 @@
   .sheet { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom)); width: min(100vw, 480px); max-height: 56dvh; z-index: 7; background: #141821; border-radius: 18px 18px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.55);
     transform: translate(-50%, calc(100% + 90px)); visibility: hidden; overflow: hidden; transition: transform .22s ease-out, visibility 0s .22s; display: flex; flex-direction: column; }
   .sheet.open { transform: translate(-50%, 0); visibility: visible; transition: transform .22s ease-out; }
+  .sheet.full { max-height: calc(100dvh - 64px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 6px); height: calc(100dvh - 64px - env(safe-area-inset-bottom) - env(safe-area-inset-top) - 6px); }
+  .sheet { max-height: 48dvh; transition: transform .22s ease-out, max-height .2s ease-out, height .2s ease-out, visibility 0s .22s; }
+  .grab { display: block; width: 42px; height: 5px; border-radius: 9px; background: #4a5164; margin: 7px auto 0; }
+  .sheet-head .hb { display: flex; gap: 6px; }
+  .lifebar { pointer-events: auto; display: flex; gap: 5px; margin-top: 5px; align-items: center; cursor: pointer; }
+  .lb { flex: 1; display: flex; align-items: center; gap: 4px; background: rgba(14,17,24,.72); border: 1px solid rgba(255,255,255,.08); border-radius: 99px; padding: 3px 8px; font-size: 12px; white-space: nowrap; }
+  .lb .bar { flex: 1; margin: 0; height: 5px; }
+  .cond { flex: 0 0 auto; font-weight: 800; }
+  .lb.low { border-color: rgba(255,90,90,.6); animation: pulse 1.4s ease-in-out infinite; }
+  .needrow { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+  .needrow .bar { flex: 1; margin: 0; }
+  .lact { display: flex; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .lact:last-child { border-bottom: 0; }
+  .lact .ic2 { font-size: 26px; width: 34px; text-align: center; }
+  .lact .tx { flex: 1; min-width: 0; }
+  .lact button { min-width: 84px; white-space: nowrap; }
   .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 6px; border-bottom: 1px solid var(--line); }
   .sheet-head b { font-size: 16px; }
   .sheet-head .x { padding: 4px 10px; }
@@ -165,7 +183,7 @@
 <canvas id="scene" aria-label="방 안 장면 — 탭하면 작업 독려"></canvas>
 <div class="hud" id="top"></div>
 <div class="status" id="status"></div>
-<div class="sheet" id="sheet"><div class="sheet-head"><b id="sheettitle"></b><button class="x" data-a="closesheet">✕</button></div><main id="main"></main></div>
+<div class="sheet" id="sheet"><i class="grab" data-a="sheetsize"></i><div class="sheet-head"><b id="sheettitle"></b><span class="hb"><button class="x" id="sizebtn" data-a="sheetsize">⤢</button><button class="x" data-a="closesheet">✕</button></span></div><main id="main"></main></div>
 <nav class="tabs" id="tabs"></nav>
 <div class="toasts" id="toasts"></div>
 <div id="modal"></div>
@@ -203,7 +221,9 @@ let lowGfx = localStorage.getItem('ytTycoon.lowgfx') === '1';
 
 let S = null;            // 게임 상태
 let tab = null;            // 열린 아래 창 (null = 닫힘)
-const SHEET_TITLES = { myhome: '🏡 미니홈', team: '🤖 AI·팀', home: '🏠 집', make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
+const FULL_TABS = ['team', 'invest', 'shop', 'myhome', 'channel', 'log'];
+let sheetFull = false, lifeFocus = null;
+const SHEET_TITLES = { life: '🍚 생활', myhome: '🏡 미니홈', team: '🤖 AI·팀', home: '🏠 집', make: '🎬 제작', channel: '📊 채널', invest: '🛒 투자', shop: '🎁 상점', log: '📜 기록' };
 let speedIdx = 0;
 let paused = false;
 let modal = null;        // { type, ... }
@@ -261,7 +281,52 @@ function renderTop() {
     <div class="pill" title="구독자">👥 <b>${fmt(S.subs)}</b></div>
     <div class="pill" title="체력">⚡<div class="bar"><i style="width:${S.stamina / ms * 100}%;background:${stCol}"></i></div><span class="small">${Math.round(S.stamina)}</span></div>
     <div class="pill" title="알고리즘 호감도">📈 <b>${Math.round(S.favor)}</b></div>
-  </div>`;
+  </div>${renderLifeBar()}`;
+}
+function renderLifeBar() {
+  const L = S.life; if (!L) return '';
+  const T = E.lifeTier(S);
+  const one = (ic, v, nm) => `<div class="lb ${v < 30 ? 'low' : ''}" title="${nm}">${ic}<div class="bar"><i style="width:${v}%;background:${v < 30 ? 'var(--red)' : v < 55 ? 'var(--yellow)' : 'var(--green)'}"></i></div></div>`;
+  return `<div class="lifebar" data-a="tab" data-k="life"><div class="lb cond">${T.icon} ${T.name}</div>${one('🍚', L.hunger, '배부름')}${one('🚿', L.clean, '청결')}${one('🙂', L.mood, '기분')}</div>`;
+}
+
+// ───────── 화면: 생활 ─────────
+function renderLife() {
+  const L = S.life, T = E.lifeTier(S), sc = E.lifeScore(S);
+  const need = (ic, nm, v) => `<div class="needrow"><span style="width:70px">${ic} ${nm}</span><div class="bar"><i style="width:${v}%;background:${v < 30 ? 'var(--red)' : v < 55 ? 'var(--yellow)' : 'var(--green)'}"></i></div><b style="width:28px;text-align:right">${Math.round(v)}</b></div>`;
+  const eff = [T.q ? `품질 ${T.q > 0 ? '+' : ''}${T.q}` : '', T.speed !== 1 ? `직접 작업 속도 ×${T.speed}` : '', S.gh < (L.fullUntil || 0) ? '🍚 든든함 품질 +1' : ''].filter(Boolean).join(' · ') || '효과 없음';
+  let h = `<div class="card"><div class="row between"><h3 style="margin:0">${T.icon} 컨디션 ${T.name}</h3><b>${Math.round(sc)}</b></div>
+    <div class="small" style="margin:4px 0 6px;color:${T.q > 0 || T.speed > 1 ? 'var(--green)' : T.q < 0 ? 'var(--red)' : 'var(--mute)'}">${eff}</div>
+    ${need('🍚', '배부름', L.hunger)}${need('🚿', '청결', L.clean)}${need('🙂', '기분', L.mood)}
+    <div class="mute small">70 이상이면 '최상' — 작업이 빨라지고 품질이 올라요. 안 챙겨도 배고프면 라면, 많이 더러우면 샤워는 알아서 해요.</div></div>`;
+  if (L.act) {
+    const A = E.LIFE_ACTS[L.act.id], selfJob = S.job && !S.job.partTime && (S.job.how || [])[S.job.stage] === 'self';
+    h += `<div class="card"><b>${A.icon} ${A.name} 중</b>${selfJob ? '<span class="mute small"> · 직접 하던 작업은 잠깐 멈춰요</span>' : ''}<div class="bar"><i style="width:${(1 - L.act.left / L.act.total) * 100}%"></i></div></div>`;
+  }
+  if (L.delivery) h += `<div class="card">🛵 배달 오는 중 · 약 ${Math.max(1, Math.ceil(L.delivery.at - S.gh))}시간</div>`;
+  const order = lifeFocus === 'door' ? ['fun', 'eat', 'care'] : lifeFocus === 'bed' ? ['care', 'fun', 'eat'] : ['eat', 'care', 'fun'];
+  for (const g of order) {
+    h += `<div class="card"><h3>${E.LIFE_GROUPS[g]}</h3>`;
+    if (g === 'care') {
+      const can = E.canWork(S) || !S.job;
+      h += `<div class="lact"><div class="ic2">🛏️</div><div class="tx"><b>침대에서 쉬기</b><div class="mute small">체력이 가득 찰 때까지 자요 · 체력 ${Math.round(S.stamina)}/${E.maxStamina(S)}</div></div>${S.resting ? '<button data-a="wake">일어나기</button>' : `<button class="ok" data-a="rest" ${S.job || S.uploadReady || S.gh < S.burnoutUntil ? 'disabled' : ''}>자기</button>`}</div>`;
+    }
+    for (const id in E.LIFE_ACTS) {
+      const A = E.LIFE_ACTS[id]; if (A.group !== g) continue;
+      const c = E.lifeCost(S, id), ok = E.canLifeAct(S, id);
+      const meta = [c ? won(c) : '무료', A.hours ? `${A.hours}시간` : '바로'].join(' · ');
+      h += `<div class="lact"><div class="ic2">${A.icon}</div><div class="tx"><b>${A.name}</b> <span class="mute small">${meta}</span><div class="mute small">${A.desc}</div></div><button class="${ok.ok ? 'ok' : ''}" data-a="life" data-k="${id}" ${ok.ok ? '' : 'disabled'}>${ok.ok ? '하기' : ok.why}</button></div>`;
+    }
+    h += `</div>`;
+  }
+  h += `<div class="card"><h3>🏠 생활 자동화</h3><div class="mute small" style="margin-bottom:4px">귀찮은 일은 돈으로 맡길 수 있어요 (게임머니)</div>`;
+  for (const id in E.LIFE_SERVICES) {
+    const V = E.LIFE_SERVICES[id], on = L.svc[id], locked = S.subs < V.unlock;
+    const price = [V.price ? won(V.price) : '', V.monthly ? `월 ${won(V.monthly)}` : ''].filter(Boolean).join(' + ');
+    const btn = on ? (V.monthly ? `<button data-a="svcstop" data-k="${id}">해지</button>` : '<span class="tag good">보유</span>') : locked ? `<span class="tag">구독자 ${fmt(V.unlock)}</span>` : `<button class="ok" data-a="svc" data-k="${id}" ${S.money < V.price ? 'disabled' : ''}>${price}</button>`;
+    h += `<div class="lact"><div class="ic2">${V.icon}</div><div class="tx"><b>${V.name}</b>${on && V.monthly ? ` <span class="tag good">이용 중 · 월 ${won(V.monthly)}</span>` : ''}<div class="mute small">${V.desc}</div></div>${btn}</div>`;
+  }
+  return h + `</div>`;
 }
 
 // ───────── 화면: 제작 ─────────
@@ -499,6 +564,7 @@ function renderStatus() {
   else if (S.live) h = `<div class="scard">🔴 라이브 방송 중 · 슈퍼챗이 쌓이는 중<div class="bar"><i style="width:${(1 - S.live.left / 24) * 100}%;background:var(--red)"></i></div></div>`;
   else if (S.moving) { const m = S.moving; h = `<div class="scard">🚚 ${E.HOUSES[m.to].name}(으)로 이사 중 · ${Math.max(0, Math.ceil((m.untilGh - S.gh) / 24))}일 남음<div class="bar"><i style="width:${(S.gh - m.startGh) / (m.untilGh - m.startGh) * 100}%"></i></div></div>`; }
   else if (j && j.partTime) h = `<div class="scard">🏪 알바 중 · 끝나면 ${won(E.partPay(S))}<div class="bar"><i style="width:${(1 - j.left / C.partTime.hours) * 100}%"></i></div></div>`;
+  else if (S.life && S.life.act && !(j && (j.how || [])[j.stage] !== 'self')) { const A = E.LIFE_ACTS[S.life.act.id]; h = `<div class="scard">${A.icon} ${A.name} 중${j ? ' · 작업 잠깐 멈춤' : ''}<div class="bar"><i style="width:${(1 - S.life.act.left / S.life.act.total) * 100}%;background:var(--yellow)"></i></div></div>`; }
   else if (j) {
     const total = C.stages.reduce((a, _, i) => a + E.stageHours(S, i), 0);
     let done = 0; for (let i = 0; i < j.stage; i++) done += E.stageHours(S, i); done += E.stageHours(S, j.stage) * j.progress;
@@ -662,11 +728,16 @@ function render() {
   Scene.setInset(hudH + stEl.offsetHeight + 4);
   const sh = document.getElementById('sheet');
   sh.classList.toggle('open', !!tab);
+  sh.classList.toggle('full', !!tab && sheetFull);
   document.body.classList.toggle('sheet-open', !!tab);
+  document.body.classList.toggle('sheet-full', !!tab && sheetFull);
+  document.getElementById('sizebtn').textContent = sheetFull ? '⤡' : '⤢';
+  Scene.setInset(document.getElementById('top').offsetHeight + (tab ? 0 : stEl.offsetHeight) + 4);
+  if (Scene.setDock) Scene.setDock(tab && !sheetFull ? sh.offsetHeight + 64 : 70);
   if (tab) {
     document.getElementById('sheettitle').textContent = SHEET_TITLES[tab];
     const renderChannelAll = () => renderChannel() + renderLog();
-    const m = { myhome: () => HomeUI.renderMyHome(), team: renderTeam, home: () => renderHome() + HomeUI.renderDecor(), make: renderMake, channel: renderChannelAll, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
+    const m = { life: renderLife, myhome: () => HomeUI.renderMyHome(), team: renderTeam, home: () => renderHome() + HomeUI.renderDecor(), make: renderMake, channel: renderChannelAll, invest: renderInvest, shop: renderShop, log: renderLog }[tab]();
     const ae = document.activeElement, typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && document.getElementById('main').contains(ae);
     if (m !== lastMainHtml && !typing) document.getElementById('main').innerHTML = lastMainHtml = m;
   }
@@ -684,20 +755,28 @@ function render() {
 // ───────── 입력 (렌더 중 DOM이 바뀌어도 눌리도록 pointerup + 이동 거리 검사) ─────────
 let down = null;
 document.addEventListener('pointerdown', e => {
-  down = { x: e.clientX, y: e.clientY };
+  down = { x: e.clientX, y: e.clientY, head: !!e.target.closest('.sheet-head, .grab') };
   const b = e.target.closest('[data-a="tap"]');
   if (b && !b.disabled) { doTap(e); down = null; return; }
   if (window.HomeUI) HomeUI.firstGesture();
   if (e.target.id === 'scene' && window.HomeUI && (HomeUI.placing || HomeUI.editing)) { HomeUI.scenePointer('down', e); return; }
   if (e.target.id === 'scene' && tab) { tab = null; down = null; render(); return; }
+  if (e.target.id === 'scene' && S && Scene.pickSpot) {
+    const sp = Scene.pickSpot(e.clientX, e.clientY);
+    if (sp) { tab = 'life'; lifeFocus = sp; sheetFull = false; lastMainHtml = ''; document.getElementById('main').scrollTop = 0; down = null; render(); return; }
+  }
   if (e.target.id === 'scene' && S && S.job && !S.job.partTime) { const p = Scene.toLogical(e.clientX, e.clientY); if (E.tap(S)) Scene.tapFx(p.x, p.y); down = null; }
 });
 document.addEventListener('pointermove', e => { if (window.HomeUI && HomeUI.placing && e.target.id === 'scene' && Scene.placementPointer) Scene.placementPointer(e.clientX, e.clientY); });
 document.addEventListener('pointerup', e => {
   if (e.target.id === 'scene' && window.HomeUI && (HomeUI.placing || HomeUI.editing) && down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 12) { down = null; HomeUI.scenePointer('up', e); render(); return; }
   if (!down) return;
-  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y), dy = e.clientY - down.y, head = down.head;
   down = null;
+  if (head && tab && Math.abs(dy) > 40) {   // 창 머리를 위로 끌면 전체 화면, 아래로 끌면 반 화면 → 닫기
+    if (dy < 0) sheetFull = true; else if (sheetFull) sheetFull = false; else tab = null;
+    render(); return;
+  }
   if (moved > 12) return;
   const b = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-a]');
   if (!b || b.disabled) return;
@@ -717,7 +796,11 @@ function doTap(e) {
 function act(a, d) {
   const i = d.i !== undefined ? +d.i : null, k = d.k;
   switch (a) {
-    case 'tab': tab = tab === k ? null : k; lastMainHtml = ''; document.getElementById('main').scrollTop = 0; if (tab && window.HomeUI) HomeUI.onTabOpen(tab); break;
+    case 'tab': tab = tab === k ? null : k; if (tab !== 'life') lifeFocus = null; sheetFull = FULL_TABS.includes(tab); lastMainHtml = ''; document.getElementById('main').scrollTop = 0; if (tab && window.HomeUI) HomeUI.onTabOpen(tab); break;
+    case 'sheetsize': sheetFull = !sheetFull; break;
+    case 'life': E.lifeAct(S, k); if (E.LIFE_ACTS[k].hours) tab = null; break;
+    case 'svc': E.buyService(S, k); break;
+    case 'svcstop': E.stopService(S, k); break;
     default: if (window.HomeUI) HomeUI.act(a, d); break;
     case 'closesheet': tab = null; break;
     case 'speed': speedIdx = i; paused = false; break;
@@ -802,7 +885,7 @@ window.addEventListener('beforeunload', save);
   if (window.Community) Community.init().then(() => render());
   if (lowGfx && Scene.setLowGfx) Scene.setLowGfx(true);
   const saved = load();
-  if (saved && (saved.v === 1 || saved.v === 2)) {
+  if (saved && (saved.v === 1 || saved.v === 2 || saved.v === 3)) {
     S = E.migrate(saved); S._toasts = [];
     const away = (Date.now() - (saved.savedAt || Date.now())) / 1000;
     const o = E.offline(S, away);
